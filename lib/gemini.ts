@@ -21,6 +21,7 @@ export function handoffPrompt(i: HandoffInput): string {
   return `You are writing a short handover note inside a family care-coordination app.
 ${i.from} is away ${i.range}. ${i.to} is covering ${i.elderFirst}'s care.
 Write 3 to 5 plain sentences addressed to ${i.to}: what is now theirs, the daily medicine routine, and anything recent to keep an eye on.
+Write as the app, in the third person ("${i.from} is away"); never write as ${i.from} and never use "I".
 Rules: only restate the facts below. Do not give medical advice. Do not diagnose. Do not suggest changing, stopping or adding any medicine. No headings, no lists, under 110 words.
 
 Now ${i.to}'s:
