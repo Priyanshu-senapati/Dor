@@ -107,7 +107,7 @@ const ROWS = [
   {
     name: "Hold",
     line: "One owner for every moment",
-    text: "A missed dose, an empty strip, a doctor visit with nobody to take her. Each goes to one person, who taps “I’m on it”. If they don’t, it passes down the chain every 15 minutes, and the moment someone answers, everyone else is told.",
+    text: "A missed dose, an empty strip, a doctor visit with nobody to take her. Each goes to one person, who taps “I’m on it”. If they don’t, it passes down the chain every 15 minutes. Then they say what happened: taken, skipped and why, or ran out, which opens a refill task. Dor spots gaps before they happen and shows who is carrying the care.",
     artifact: <ChainArtifact />,
   },
   {
@@ -146,7 +146,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Fla
           <h1 className="font-display text-4xl leading-[1.08] text-balance md:text-6xl">
             Amma flies her own kite. Dor makes sure someone is always holding the string.
           </h1>
-          <p className="mt-6 max-w-xl text-lg text-muted">
+          <p className="mt-5 text-2xl font-bold text-kite-deep">Every care event has an owner.</p>
+          <p className="mt-3 max-w-xl text-lg text-muted">
             When a reminder app tells the whole family a dose was missed, everyone assumes someone else will call. Dor gives
             every missed dose, refill and doctor visit <strong className="text-ink">one owner</strong>, checks prescriptions
             from different doctors against each other, and keeps the elder in charge of their own medicines.

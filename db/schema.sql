@@ -104,6 +104,20 @@ create table if not exists events (
   at timestamptz not null default now()
 );
 
+-- Every step of an alert's life (raised, passed on, claimed, outcome, resolved) is an event pointing at it.
+alter table events add column if not exists alert_id uuid references alerts(id) on delete cascade;
+
+-- Handoff: a member away for some dates, and who covers for them.
+create table if not exists away (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references profiles(id) on delete cascade,
+  member_id uuid not null references members(id) on delete cascade,
+  cover_id uuid references members(id) on delete set null,
+  starts_on text not null,
+  ends_on text not null,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists symptoms (
   id uuid primary key default gen_random_uuid(),
   profile_id uuid not null references profiles(id) on delete cascade,

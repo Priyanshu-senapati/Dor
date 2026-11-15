@@ -1,10 +1,11 @@
 import { sql } from "./db";
-import { orderChain, nextLevel, firstHelper } from "./chain";
+import { orderChain, nextLevel, firstHelper, onDuty } from "./chain";
 import { slotsForDay, classifySlot, slotKey, visitHeading } from "./schedule";
 import { addDays, istDate, showTime, showWhen } from "./time";
 import { actionLink, notifyOwner } from "./notify";
 import { sendMail } from "./mail";
 import { medName } from "./care";
+import { addTrail, raise } from "./alerts";
 import type { Alert, Appointment, Med, Member, Profile } from "./types";
 
 export const REFILL_DAYS = 3;
@@ -16,33 +17,18 @@ async function once(key: string): Promise<boolean> {
   return (await sql`insert into sent_keys (key) values (${key}) on conflict do nothing returning key`).length > 0;
 }
 
-async function raise(
-  profile: Profile,
-  chain: Member[],
-  kind: Alert["kind"],
-  refKey: string,
-  title: string,
-  body: string,
-  level: number,
-  dose?: { medId: string; at: Date },
-): Promise<number> {
-  const lvl = Math.min(level, chain.length - 1);
-  const owner = chain[lvl];
-  if (!owner) return 0;
-  // For doses, re-check inside the insert: someone may have tapped "Taken" since this tick read the logs.
-  const [alert] = dose
-    ? await sql<Alert>`insert into alerts (profile_id, kind, ref_key, title, body, level, owner_id)
-        select ${profile.id}, ${kind}, ${refKey}, ${title}, ${body}, ${lvl}, ${owner.id}
-        where not exists (select 1 from dose_logs where med_id = ${dose.medId} and at = ${dose.at} and status in ('taken', 'skipped'))
-        on conflict (profile_id, ref_key) do nothing returning *`
-    : await sql<Alert>`insert into alerts (profile_id, kind, ref_key, title, body, level, owner_id)
-        values (${profile.id}, ${kind}, ${refKey}, ${title}, ${body}, ${lvl}, ${owner.id})
-        on conflict (profile_id, ref_key) do nothing returning *`;
-  return alert && (await notifyOwner(profile, alert, owner, chain)) ? 1 : 0;
+/** The chain on duty today: ordered, minus anyone away (their cover is already in it). */
+export async function dutyChain(profileId: string, date: string): Promise<Member[]> {
+  const [members, away] = await Promise.all([
+    sql<Member>`select * from members where profile_id = ${profileId}`,
+    sql<{ member_id: string; starts_on: string; ends_on: string }>`select member_id, starts_on, ends_on from away where profile_id = ${profileId}`,
+  ]);
+  return onDuty(orderChain(members), away, date);
 }
 
 async function tickProfile(profile: Profile, now: Date): Promise<number> {
-  const chain = orderChain(await sql<Member>`select * from members where profile_id = ${profile.id}`);
+  const today = istDate(now);
+  const chain = await dutyChain(profile.id, today);
   if (!chain.length) return 0;
   const first = chain[0];
   const helper = firstHelper(chain);
@@ -51,7 +37,6 @@ async function tickProfile(profile: Profile, now: Date): Promise<number> {
   // Doses: upcoming reminders, then missed doses become owned alerts.
   const meds = await sql<Med>`select * from medications where profile_id = ${profile.id} and status = 'active'`;
   const medById = new Map(meds.map((m) => [m.id, m]));
-  const today = istDate(now);
   const logs = await sql<{ med_id: string; at: Date; status: string }>`select med_id, at, status from dose_logs
     where profile_id = ${profile.id} and at >= ${new Date(now.getTime() - 2 * 86_400_000)}`;
   const logged = new Map(logs.map((l) => [`${l.med_id}:${l.at.getTime()}`, l.status]));
@@ -83,7 +68,7 @@ async function tickProfile(profile: Profile, now: Date): Promise<number> {
         sent += await raise(profile, chain, "dose", `dose:${key}`,
           `${profile.elder_name} hasn't marked ${med.brand} (${showTime(slot.at)})`,
           `The ${showTime(slot.at)} dose of ${medName(med)} is over 30 minutes late and nobody has marked it.`, 0,
-          { medId: med.id, at: slot.at });
+          { dose: { medId: med.id, at: slot.at } });
       }
     }
   }
@@ -125,7 +110,9 @@ async function tickProfile(profile: Profile, now: Date): Promise<number> {
     const owner = chain[next];
     const [moved] = await sql<Alert>`update alerts set level = ${next}, owner_id = ${owner.id}, last_notified_at = ${now}
       where id = ${alert.id} and level = ${alert.level} and status = 'open' returning *`;
-    if (moved && (await notifyOwner(profile, moved, owner, chain))) sent++;
+    if (!moved) continue;
+    await addTrail(profile.id, moved.id, null, `No answer from ${chain[alert.level]?.name ?? "the last person"}. Passed to ${owner.name}.`);
+    if (await notifyOwner(profile, moved, owner, chain)) sent++;
   }
   return sent;
 }

@@ -1,5 +1,7 @@
+import { sql } from "@/lib/db";
 import { requireCircle } from "@/lib/session";
 import { loadHistory, CHANGE_KINDS } from "@/lib/history";
+import { whyMissed } from "@/lib/insights";
 import { SYMPTOMS } from "@/lib/symptoms";
 import { istDate, showDay, showTime } from "@/lib/time";
 import { logSymptom } from "../../actions";
@@ -11,7 +13,20 @@ const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 export default async function Trace({ searchParams }: { searchParams: Promise<FlashParams> }) {
   const sp = await searchParams;
   const { profile, chain } = await requireCircle();
-  const { events, symptoms, flags } = await loadHistory(profile.id);
+  const [{ events, symptoms, flags }, missRows] = await Promise.all([
+    loadHistory(profile.id),
+    sql<{ status: string; reason: string }>`select status, reason from dose_logs
+      where profile_id = ${profile.id} and at > now() - interval '30 days' and at < now()`,
+  ]);
+  const misses = whyMissed(missRows);
+  const top = misses[0];
+  const insight = !top
+    ? null
+    : top.reason === "Never marked"
+      ? "Most misses were never marked at all, so the reminder or the marking is where to start."
+      : top.reason === "Ran out"
+        ? "Most misses were supply problems, not memory. Watch the refills."
+        : `The most common reason was “${top.reason}”. Worth raising with the doctor.`;
   const nameOf = (id: string | null) => chain.find((m) => m.id === id)?.name ?? "";
 
   const items = [
@@ -47,6 +62,32 @@ export default async function Trace({ searchParams }: { searchParams: Promise<Fl
               </ul>
             ) : (
               <p className="text-muted">When a symptom first appears within 7 days of a medicine change, Dor points it out here and on the Doctor Brief.</p>
+            )}
+          </Card>
+
+          <Card title="Why doses were missed, last 30 days">
+            {misses.length === 0 ? (
+              <p className="text-muted">No missed doses in the last 30 days.</p>
+            ) : (
+              <>
+                {insight && <p className="mb-4 font-bold">{insight}</p>}
+                <ul className="space-y-3">
+                  {misses.map((m) => (
+                    <li key={m.reason}>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span>{m.reason}</span>
+                        <span className="text-sm tabular-nums text-muted">
+                          {m.count} · {m.pct}%
+                        </span>
+                      </div>
+                      <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-line" role="img" aria-label={`${m.reason}: ${m.pct}%`}>
+                        <div className="h-full rounded-full bg-warn" style={{ width: `${m.pct}%` }} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-sm text-muted">Reasons come from the elder’s own “I chose to skip” answers and the family’s “What happened?”.</p>
+              </>
             )}
           </Card>
 

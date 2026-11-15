@@ -14,7 +14,7 @@ export function doseRef(refKey: string): { med: string; at: number } | null {
 }
 
 /** Tell the current owner of an alert that it is theirs now. */
-export async function notifyOwner(profile: Profile, alert: Alert, owner: Member, chain: Member[]): Promise<boolean> {
+export async function notifyOwner(profile: Profile, alert: Alert, owner: Member, chain: Member[], note?: string): Promise<boolean> {
   const base = { m: owner.id, p: profile.id };
   const dose = doseRef(alert.ref_key);
   const open = { label: "Open Dor", href: `${appUrl()}/p` };
@@ -28,8 +28,8 @@ export async function notifyOwner(profile: Profile, alert: Alert, owner: Member,
 
   // Only name the people this alert has actually been with (errands skip the elder).
   const before = chain.slice(alert.kind === "dose" ? 0 : firstHelper(chain), alert.level).map((m) => m.name);
-  const lines = [alert.body];
-  if (before.length) lines.push(`${before.join(" and ")} ${before.length > 1 ? "haven't" : "hasn't"} responded, so this is with you now.`);
+  const lines = note ? [note, alert.body] : [alert.body];
+  if (before.length && !note) lines.push(`${before.join(" and ")} ${before.length > 1 ? "haven't" : "hasn't"} responded, so this is with you now.`);
   lines.push("Tap below so the rest of the family knows you've got it. If nobody does within 15 minutes, Dor passes it on.");
   const ack = alert.kind === "escort" ? `I'll take ${profile.elder_name}` : "I'm on it";
   return sendMail(owner.email, `You're up: ${alert.title}`, lines, [{ label: ack, href: actionLink({ ...base, a: "ack", id: alert.id }) }, open]);

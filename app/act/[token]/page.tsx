@@ -6,7 +6,9 @@ import { verifyToken } from "@/lib/token";
 import { showTime } from "@/lib/time";
 import { SKIP_REASONS } from "@/lib/symptoms";
 import { respondFromEmail } from "../../actions";
-import { Kite, good, primary } from "@/components/ui";
+import { Kite, good, primary, secondary } from "@/components/ui";
+import { doseRef } from "@/lib/notify";
+import { DOSE_OUTCOMES } from "@/lib/outcomes";
 import { CheckIcon } from "@/components/icons";
 import { Submit } from "@/components/Submit";
 import type { Alert, EmailAction, Med } from "@/lib/types";
@@ -48,6 +50,33 @@ export default async function Act({ params }: { params: Promise<{ token: string 
           where a.id = ${action.id} and a.profile_id = ${circle.profile.id}`
       : [];
     if (!alert) return <Expired text="This alert no longer exists" />;
+    if (alert.status === "acked" && alert.acked_by === circle.member.id) {
+      const first = circle.profile.elder_name.split(" ")[0];
+      return (
+        <Shell>
+          <p className="flex items-center gap-2 font-bold text-leaf">
+            <CheckIcon /> You’re on it. Everyone else in the circle has been told.
+          </p>
+          <h1 className="font-display mt-2 text-3xl">{alert.title}</h1>
+          {doseRef(alert.ref_key) ? (
+            <>
+              <p className="mt-2 text-muted">When you know, tell the circle what happened. One tap:</p>
+              <div className="mt-4 space-y-2">
+                {DOSE_OUTCOMES.map((o) => (
+                  <form key={o.id} action={respondFromEmail}>
+                    {hidden}
+                    <input type="hidden" name="outcome" value={o.id} />
+                    <Submit className={`${secondary} w-full justify-start text-lg`}>{o.label(first)}</Submit>
+                  </form>
+                ))}
+              </div>
+            </>
+          ) : (
+            <Link href="/p" className={`${primary} mt-5`}>Open Dor</Link>
+          )}
+        </Shell>
+      );
+    }
     if (alert.status !== "open") {
       return (
         <Shell>

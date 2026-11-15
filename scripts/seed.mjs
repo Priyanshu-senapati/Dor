@@ -81,6 +81,8 @@ const skips = new Map([
   [`${telmaAm}:-9`, "Felt dizzy"],
   [`${telmaAm}:-4`, "Felt dizzy"],
   [`${ecosprin}:-7`, "Stomach upset"],
+  [`${ecosprin}:-20`, "Felt unwell"],
+  [`${thyronorm}:-16`, "Ran out"],
 ]);
 const missed = new Set([`${glycomet}:20:00:-7`, `${glycomet}:20:00:-3`]);
 
@@ -106,7 +108,8 @@ for (let d = -30; d <= 0; d++) { // 30 days, so the Doctor Brief's 30-day adhere
       const by = status === "missed" ? null : d === -1 && t === "20:00" ? riya : kamala;
       logs.push([id, when, status, reason ?? "", by]);
       if (reason) {
-        events.push([when, kamala, "skip", `Kamala Devi chose to skip ${id === telmaAm ? "Telma-AM 40/5 mg" : "Ecosprin 75 mg"} (${t}): ${reason}`]);
+        const brand = id === telmaAm ? "Telma-AM 40/5 mg" : id === thyronorm ? "Thyronorm 50 mcg" : "Ecosprin 75 mg";
+        events.push([when, kamala, "skip", `Kamala Devi chose to skip ${brand} (${t}): ${reason}`]);
         if (reason === "Felt dizzy") symptoms.push([when, kamala, "dizziness", `Gave it as the reason to skip Telma-AM`]);
       }
     }
@@ -133,9 +136,40 @@ await sql`insert into appointments (profile_id, doctor, specialty, location, sta
    ${"Riya: Is the dizziness from the new BP tablet?\nArjun: Dr Rao also prescribed Amlong. Is that safe with Telma-AM?\nKamala Devi: Can I take fewer tablets at night?"}, null)`;
 
 const lateAt = at(-1, "20:00");
-await sql`insert into alerts (profile_id, kind, ref_key, title, body, status, level, owner_id, last_notified_at, acked_by, acked_at, resolution, created_at)
+const [{ id: yesterday }] = await sql`insert into alerts (profile_id, kind, ref_key, title, body, status, level, owner_id, last_notified_at, acked_by, acked_at, resolution, created_at)
   values (${pid}, 'dose', ${`dose:${glycomet}:${lateAt.getTime()}`}, 'Kamala Devi hasn''t marked Glycomet-GP 1 (8:00 pm)',
     'The 8:00 pm dose of Glycomet-GP 1 is over 30 minutes late and nobody has marked it.', 'resolved', 1, ${riya},
-    ${at(-1, "20:45")}, ${riya}, ${at(-1, "20:47")}, 'Riya called. Kamala Devi took Glycomet-GP 1 at 9:10 pm (marked by Riya)', ${at(-1, "20:31")})`;
+    ${at(-1, "20:45")}, ${riya}, ${at(-1, "20:47")}, 'Riya called. Kamala Devi took Glycomet-GP 1 at 9:10 pm (marked by Riya)', ${at(-1, "20:31")})
+  returning id`;
+await sql.transaction(
+  [
+    [at(-1, "20:31"), null, "Raised. Asked Kamala Devi first."],
+    [at(-1, "20:46"), null, "No answer from Kamala Devi. Passed to Riya."],
+    [at(-1, "20:47"), riya, "Riya: “I’m on it.”"],
+    [at(-1, "21:10"), riya, "Riya: Kamala took it."],
+    [at(-1, "21:10"), riya, "Resolved: Kamala Devi took Glycomet-GP 1 (8:00 pm) (marked by Riya)."],
+  ].map(([when, by, label]) => sql`insert into events (profile_id, member_id, kind, label, alert_id, at)
+    values (${pid}, ${by}, 'trail', ${label}, ${yesterday}, ${when})`),
+);
+
+// A month of who actually picked things up: Riya carries most of it, which Care load makes visible.
+const pickers = [riya, riya, arjun, riya, riya, riya, riya, arjun, riya, riya, riya, arjun, riya, riya];
+await sql.transaction(
+  pickers.map((who, i) => {
+    const d = -(i * 2 + 2);
+    const refill = i % 5 === 4;
+    return sql`insert into alerts (profile_id, kind, ref_key, title, body, status, level, owner_id, last_notified_at, acked_by, acked_at, resolution, created_at)
+      values (${pid}, ${refill ? "refill" : "dose"}, ${`hist:${i}`},
+        ${refill ? "Shelcal is running out" : "Kamala Devi hasn't marked Glycomet-GP 1 (8:00 pm)"}, '', 'resolved', 1, ${who},
+        ${at(d, "20:45")}, ${who}, ${at(d, "20:50")},
+        ${refill ? "Bought more." : who === riya ? "Riya called. Kamala Devi took it late." : "Arjun called from Pune. Kamala Devi took it late."},
+        ${at(d, "20:31")})`;
+  }),
+);
+await sql.transaction([
+  sql`insert into events (profile_id, member_id, kind, label, at) values (${pid}, ${riya}, 'refill', 'Riya refilled Glycomet-GP 1 (+60)', ${at(-18, "18:00")})`,
+  sql`insert into events (profile_id, member_id, kind, label, at) values (${pid}, ${riya}, 'refill', 'Riya refilled Shelcal (+30)', ${at(-9, "18:30")})`,
+  sql`insert into events (profile_id, member_id, kind, label, at) values (${pid}, ${arjun}, 'refill', 'Arjun refilled Ecosprin (+30) online', ${at(-24, "11:00")})`,
+]);
 
 console.log(`Seeded DOR-DEMO: ${logs.length} dose logs, ${events.length} events, ${symptoms.length} symptoms.`);

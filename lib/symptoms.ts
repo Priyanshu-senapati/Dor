@@ -15,6 +15,7 @@ export const SYMPTOMS = [
 export const SKIP_REASONS: { label: string; symptom: string | null }[] = [
   { label: "Felt dizzy", symptom: "dizziness" },
   { label: "Felt sick", symptom: "nausea" },
+  { label: "Felt unwell", symptom: "feeling unwell" },
   { label: "Too sleepy", symptom: "drowsiness" },
   { label: "Stomach upset", symptom: "stomach upset" },
   { label: "Ran out", symptom: null },

@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { sql } from "./db";
 import { signToken, verifyToken } from "./token";
-import { orderChain } from "./chain";
+import { onDuty, orderChain } from "./chain";
+import { istDate } from "./time";
 import type { Member, Profile } from "./types";
 
 const COOKIE = "dor";
@@ -22,20 +23,38 @@ export async function clearSession(): Promise<void> {
   (await cookies()).delete(COOKIE);
 }
 
+export interface AwayRow {
+  id: string;
+  member_id: string;
+  cover_id: string | null;
+  starts_on: string;
+  ends_on: string;
+}
+
 export interface Circle {
   profile: Profile;
   member: Member;
+  /** Everyone, in chain order. */
   chain: Member[];
+  /** The chain today: anyone away is skipped. Alert levels index into this. */
+  duty: Member[];
+  away: AwayRow[];
   elder: Member | undefined;
 }
 
 export async function loadCircle(profileId: string, memberId: string): Promise<Circle | null> {
-  const [profile] = await sql<Profile>`select id, code, elder_name from profiles where id = ${profileId}`;
+  const [[profile], members, away] = await Promise.all([
+    sql<Profile>`select id, code, elder_name from profiles where id = ${profileId}`,
+    sql<Member>`select * from members where profile_id = ${profileId}`,
+    sql<AwayRow>`select id, member_id, cover_id, starts_on, ends_on from away
+      where profile_id = ${profileId} and ends_on >= ${istDate(new Date())} order by starts_on`,
+  ]);
   if (!profile) return null;
-  const chain = orderChain(await sql<Member>`select * from members where profile_id = ${profileId}`);
+  const chain = orderChain(members);
   const member = chain.find((m) => m.id === memberId);
   if (!member) return null;
-  return { profile, member, chain, elder: chain.find((m) => m.role === "elder") };
+  const duty = onDuty(chain, away, istDate(new Date()));
+  return { profile, member, chain, duty, away, elder: chain.find((m) => m.role === "elder") };
 }
 
 /** The signed-in member and their care circle; sends anyone else back to the start page. */

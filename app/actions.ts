@@ -11,7 +11,9 @@ import { istDate, showWhen } from "@/lib/time";
 import { verifyToken } from "@/lib/token";
 import { appUrl, sendMail } from "@/lib/mail";
 import { runTick } from "@/lib/tick";
-import { ackAlert, activateMed, claimEscort, isUuid, logEvent, medName, recordDose, resolveAlert } from "@/lib/care";
+import {
+  ackAlert, activateMed, claimEscort, claimRefill, endAway, isUuid, logEvent, medName, recordDose, reportOutcome, resolveAlert, setAway,
+} from "@/lib/care";
 import type { EmailAction, Med, Role } from "@/lib/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -251,6 +253,42 @@ export async function markDose(fd: FormData): Promise<void> {
   back(returnTo(fd), msg, "ok");
 }
 
+export async function reportOutcomeAction(fd: FormData): Promise<void> {
+  const { profile, duty, member } = await requireCircle();
+  const msg = await reportOutcome(profile, duty, text(fd, "id", 40), text(fd, "outcome", 20), member);
+  refresh();
+  back(returnTo(fd), msg, "ok");
+}
+
+export async function claimRefillAction(fd: FormData): Promise<void> {
+  const { profile, duty, member } = await requireCircle();
+  const msg = await claimRefill(profile, duty, text(fd, "id", 40), member);
+  refresh();
+  back(returnTo(fd), msg, "ok");
+}
+
+const MAX_AWAY_DAYS = 60;
+
+export async function setAwayAction(fd: FormData): Promise<void> {
+  const { profile, chain, member } = await requireCircle();
+  const starts = text(fd, "starts", 10);
+  const ends = text(fd, "ends", 10);
+  const today = istDate(new Date());
+  if (!DATE_RE.test(starts) || !DATE_RE.test(ends) || ends < starts || ends < today) back("/p/circle", "Pick dates from today onwards, with the end after the start.");
+  if ((Date.parse(ends) - Date.parse(starts)) / 86_400_000 > MAX_AWAY_DAYS) back("/p/circle", `Cover can be set for up to ${MAX_AWAY_DAYS} days at a time.`);
+  if (member.role === "elder") back("/p/circle", "The elder is always first in the chain.");
+  const msg = await setAway(profile, chain, member, text(fd, "cover", 40), starts, ends);
+  refresh();
+  back("/p/circle", msg, msg.startsWith("Done") ? "ok" : "error");
+}
+
+export async function endAwayAction(fd: FormData): Promise<void> {
+  const { profile, member } = await requireCircle();
+  const msg = await endAway(profile, text(fd, "id", 40), member);
+  refresh();
+  back("/p/circle", msg, "ok");
+}
+
 export async function ackAlertAction(fd: FormData): Promise<void> {
   const { profile, chain, member } = await requireCircle();
   const msg = await ackAlert(profile, chain, text(fd, "id", 40), member);
@@ -274,13 +312,19 @@ export async function checkNow(): Promise<void> {
 
 /** POST from a one-click email link (the GET only shows a confirm page, so mail scanners can't trigger it). */
 export async function respondFromEmail(fd: FormData): Promise<void> {
-  const action = verifyToken<EmailAction>(text(fd, "token", 2000));
+  const token = text(fd, "token", 2000);
+  const action = verifyToken<EmailAction>(token);
   if (!action) redirect(`/done?error=${encodeURIComponent("This link has expired. Open Dor to respond.")}`);
   const circle = await loadCircle(action.p, action.m);
   if (!circle) redirect(`/done?error=${encodeURIComponent("You're no longer in this care circle.")}`);
   let msg = "Nothing to do.";
-  if (action.a === "ack" && action.id) {
-    msg = await ackAlert(circle.profile, circle.chain, action.id, circle.member);
+  const outcome = text(fd, "outcome", 20);
+  if (action.a === "ack" && action.id && outcome) {
+    msg = await reportOutcome(circle.profile, circle.duty, action.id, outcome, circle.member);
+  } else if (action.a === "ack" && action.id) {
+    await ackAlert(circle.profile, circle.chain, action.id, circle.member);
+    // Straight on to "What happened?", so the email itself carries the whole workflow.
+    redirect(`/act/${token}`);
   } else if ((action.a === "taken" || action.a === "skip") && action.med && action.at) {
     msg = await recordDose(circle.profile, circle.member, action.med, action.at, action.a === "taken" ? "taken" : "skipped", text(fd, "reason", 120));
   }
