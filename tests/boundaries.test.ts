@@ -1,7 +1,21 @@
 import { describe, it, expect } from "vitest";
 import { cleanTimes, isDate, isEmail, normalizeCode, parseSalts, safeReturnPath } from "../lib/validate";
 import { googleCalendarLink } from "../lib/gcal";
-import { handoffFallback, handoffPrompt } from "../lib/gemini";
+import { chooseFlashModel, handoffFallback, handoffPrompt } from "../lib/gemini";
+
+describe("chooseFlashModel", () => {
+  it("picks a text Flash model that supports generateContent", () => {
+    expect(
+      chooseFlashModel([
+        { name: "models/gemini-3-pro", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-3-flash-image", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-3-flash", supportedGenerationMethods: ["generateContent", "countTokens"] },
+        { name: "models/text-embedding-004", supportedGenerationMethods: ["embedContent"] },
+      ]),
+    ).toBe("gemini-3-flash");
+  });
+  it("returns null when nothing fits", () => expect(chooseFlashModel([{ name: "models/embed", supportedGenerationMethods: [] }])).toBeNull());
+});
 
 describe("input checks at the server boundary", () => {
   it("only redirects back inside the app", () => {

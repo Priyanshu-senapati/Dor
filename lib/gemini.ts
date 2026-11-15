@@ -45,24 +45,59 @@ interface GeminiResponse {
   candidates?: { content?: { parts?: { text?: string }[] } }[];
 }
 
+export interface GeminiModel {
+  name: string;
+  supportedGenerationMethods?: string[];
+}
+
+const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_TIMEOUT_MS = 8000;
+
+/** A plain-text Flash model from the key's model list ("models/gemini-3-flash" → "gemini-3-flash"). */
+export function chooseFlashModel(models: GeminiModel[]): string | null {
+  const usable = models.filter(
+    (m) => m.supportedGenerationMethods?.includes("generateContent") && /flash/.test(m.name) && !/(image|tts|audio|live|exp)/.test(m.name),
+  );
+  return usable.sort((a, b) => b.name.localeCompare(a.name))[0]?.name.replace(/^models\//, "") ?? null;
+}
+
+async function listModels(key: string): Promise<GeminiModel[]> {
+  const res = await fetch(`${GEMINI_API}/models?pageSize=200`, { headers: { "x-goog-api-key": key }, signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS) });
+  return res.ok ? (((await res.json()) as { models?: GeminiModel[] }).models ?? []) : [];
+}
+
+function generate(key: string, model: string, prompt: string): Promise<Response> {
+  return fetch(`${GEMINI_API}/models/${model}:generateContent`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 400 },
+    }),
+    signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
+  });
+}
+
+// Model names change over time; remember the one that worked for this server instance.
+let workingModel: string | null = null;
 
 /** Briefing text, and whether Gemini wrote it. Never throws: a failed call falls back to plain text. */
 export async function handoffBriefing(i: HandoffInput): Promise<{ text: string; ai: boolean }> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return { text: handoffFallback(i), ai: false };
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  let model = workingModel ?? process.env.GEMINI_MODEL ?? "gemini-flash-latest";
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: handoffPrompt(i) }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 400 },
-      }),
-      signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
-    });
-    if (!res.ok) throw new Error(`Gemini returned ${res.status}`);
+    const prompt = handoffPrompt(i);
+    let res = await generate(key, model, prompt);
+    if (res.status === 404) {
+      const found = chooseFlashModel(await listModels(key));
+      if (found) {
+        model = found;
+        res = await generate(key, model, prompt);
+      }
+    }
+    if (!res.ok) throw new Error(`Gemini returned ${res.status} for ${model}`);
+    workingModel = model;
     const data = (await res.json()) as GeminiResponse;
     const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim();
     return text ? { text, ai: true } : { text: handoffFallback(i), ai: false };
