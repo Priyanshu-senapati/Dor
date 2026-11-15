@@ -1,0 +1,22 @@
+name: Dor reminder loop
+
+# shortcut: GitHub's */5 schedule can stall for hours on a new repo; start this by hand to run
+# the check every 5 minutes for ~6 hours (e.g. on judging day). Drop it once the schedule runs reliably.
+on:
+  workflow_dispatch:
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - name: Run the reminder check every 5 minutes
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DOR_URL: ${{ secrets.DOR_URL }}
+        run: |
+          for i in $(seq 1 70); do
+            curl -sS --max-time 60 -H "Authorization: Bearer $CRON_SECRET" "$DOR_URL/api/cron" || true
+            echo
+            sleep 300
+          done
