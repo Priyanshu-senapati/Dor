@@ -1,12 +1,12 @@
-import { describe, it, expect } from "vitest";
+﻿import { describe, it, expect } from "vitest";
 import { orderChain, nextLevel } from "../lib/chain";
 
 describe("orderChain", () => {
   it("puts the elder first, then members by chain order", () => {
     const members = [
-      { id: "f", role: "family", chainOrder: 2 },
-      { id: "c", role: "caretaker", chainOrder: 1 },
-      { id: "e", role: "elder", chainOrder: 9 },
+      { id: "f", role: "family", chain_order: 2 },
+      { id: "c", role: "caretaker", chain_order: 1 },
+      { id: "e", role: "elder", chain_order: 9 },
     ];
     expect(orderChain(members).map((m) => m.id)).toEqual(["e", "c", "f"]);
   });

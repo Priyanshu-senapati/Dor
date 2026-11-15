@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+﻿import { describe, it, expect } from "vitest";
 import { resolveSalts, findDuplicates } from "../lib/salts";
 
 describe("resolveSalts", () => {
@@ -16,7 +16,7 @@ describe("resolveSalts", () => {
 
 describe("findDuplicates", () => {
   const med = (id: string, brand: string, salts: string[], by: string) => ({
-    id, brand, salts, prescribedBy: by, prescribedOn: "2026-10-14",
+    id, brand, salts, prescribed_by: by, prescribed_on: "2026-10-14",
   });
   it("flags the same salt across two prescriptions", () => {
     const dups = findDuplicates([

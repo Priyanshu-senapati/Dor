@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { slotsForDay, classifySlot } from "../lib/schedule";
+﻿import { describe, it, expect } from "vitest";
+import { slotsForDay, classifySlot, adherence, slotKey } from "../lib/schedule";
 import { istDate, doseInstant } from "../lib/time";
 
 describe("time", () => {
@@ -12,7 +12,7 @@ describe("time", () => {
 });
 
 describe("slotsForDay", () => {
-  const med = { id: "m1", times: ["20:00", "08:00"], startDate: "2026-11-10", endDate: "2026-11-20" };
+  const med = { id: "m1", times: ["20:00", "08:00"], start_date: "2026-11-10", end_date: "2026-11-20" };
   it("returns one slot per time, sorted, while the course is active", () => {
     const slots = slotsForDay([med], "2026-11-15");
     expect(slots.map((s) => s.at.toISOString())).toEqual([
@@ -35,4 +35,16 @@ describe("classifySlot", () => {
   it("is due until 30 minutes after the dose time", () => expect(classifySlot(at, min(30), false)).toBe("due"));
   it("is missed after the 30 minute grace", () => expect(classifySlot(at, min(31), false)).toBe("missed"));
   it("is done once logged, even after it was missed", () => expect(classifySlot(at, min(90), true)).toBe("done"));
+});
+
+describe("adherence", () => {
+  it("counts only doses past their grace window, and how many were taken", () => {
+    const now = new Date("2026-11-15T12:00:00Z");
+    const slots = [
+      { medId: "a", at: new Date("2026-11-15T02:30:00Z") },
+      { medId: "b", at: new Date("2026-11-15T03:30:00Z") },
+      { medId: "a", at: new Date("2026-11-15T11:45:00Z") },
+    ];
+    expect(adherence(slots, new Set([slotKey(slots[0])]), now)).toEqual({ due: 2, taken: 1 });
+  });
 });

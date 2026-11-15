@@ -1,4 +1,4 @@
-// Common Indian brands → active ingredients (salts). A safety net, not a formulary:
+﻿// Common Indian brands â†’ active ingredients (salts). A safety net, not a formulary:
 // unknown brands resolve to [] and the UI asks the family to type the salt themselves.
 const BRANDS: Record<string, string[]> = {
   // Pain / fever
@@ -100,7 +100,7 @@ function words(input: string): string[] {
 /** Active ingredients for a brand as typed ("TELMA-AM 40", "dolo650"); [] when unknown. */
 export function resolveSalts(brand: string): string[] {
   const w = words(brand);
-  // Longest leading run of whole words that names a brand, so "Glycomet GP 2 Forte" → "glycomet gp".
+  // Longest leading run of whole words that names a brand, so "Glycomet GP 2 Forte" â†’ "glycomet gp".
   for (let n = w.length; n > 0; n--) {
     const hit = INDEX.get(w.slice(0, n).join(""));
     if (hit) return hit;
@@ -112,8 +112,8 @@ export interface SaltMed {
   id: string;
   brand: string;
   salts: string[];
-  prescribedBy: string | null;
-  prescribedOn: string | null;
+  prescribed_by: string | null;
+  prescribed_on: string | null;
 }
 
 export function findDuplicates<M extends SaltMed>(meds: M[]): { salt: string; meds: M[] }[] {

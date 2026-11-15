@@ -1,4 +1,4 @@
-import { doseInstant } from "./time";
+﻿import { doseInstant } from "./time";
 
 export const REMIND_BEFORE_MIN = 15;
 export const GRACE_MIN = 30;
@@ -11,17 +11,25 @@ export interface Slot {
 export interface SchedulableMed {
   id: string;
   times: string[];
-  startDate: string;
-  endDate: string | null;
+  start_date: string;
+  end_date: string | null;
 }
 
 export type SlotState = "future" | "upcoming" | "due" | "missed" | "done";
 
 export function slotsForDay(meds: SchedulableMed[], date: string): Slot[] {
   return meds
-    .filter((m) => m.startDate <= date && (!m.endDate || m.endDate >= date))
+    .filter((m) => m.start_date <= date && (!m.end_date || m.end_date >= date))
     .flatMap((m) => m.times.map((t) => ({ medId: m.id, at: doseInstant(date, t) })))
     .sort((a, b) => a.at.getTime() - b.at.getTime());
+}
+
+export const slotKey = (s: Slot): string => `${s.medId}:${s.at.getTime()}`;
+
+/** Doses whose grace window has passed, and how many of those were taken. */
+export function adherence(slots: Slot[], takenKeys: Set<string>, now: Date): { due: number; taken: number } {
+  const past = slots.filter((s) => now.getTime() - s.at.getTime() > GRACE_MIN * 60_000);
+  return { due: past.length, taken: past.filter((s) => takenKeys.has(slotKey(s))).length };
 }
 
 /** `logged` means someone marked the dose taken or skipped. */
