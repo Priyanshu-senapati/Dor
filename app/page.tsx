@@ -16,7 +16,7 @@ function HoldPreview() {
           <p className="mt-1 font-bold">“You’re up. If nobody answers in 15 min, it goes to Arjun.”</p>
           <span className="mt-2 inline-block rounded-lg bg-kite-deep px-3 py-1.5 font-bold text-white">I’m on it</span>
         </li>
-        <li className="ml-12 rounded-2xl border-l-4 border-leaf bg-white p-4 shadow-sm">
+        <li className="ml-12 rounded-2xl border border-leaf/30 bg-[#eef6f1] p-4 shadow-sm">
           <p className="text-sm font-bold text-leaf">8:47 AM · Handled</p>
           <p className="mt-1 font-bold">Everyone sees: Riya is handling it.</p>
           <p className="text-muted">Arjun doesn’t panic. Nobody assumes.</p>

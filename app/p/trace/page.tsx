@@ -33,7 +33,7 @@ export default async function Trace({ searchParams }: { searchParams: Promise<Fl
             {flags.length ? (
               <ul className="space-y-3">
                 {flags.map((f) => (
-                  <li key={f.symptom} className="rounded-xl border-l-4 border-kite bg-paper p-4">
+                  <li key={f.symptom} className="rounded-xl border border-kite/40 bg-[#fff7f0] p-4">
                     <p className="text-lg font-bold">
                       {cap(f.symptom)} started {f.daysAfter === 0 ? "the same day as" : `${f.daysAfter} day${f.daysAfter === 1 ? "" : "s"} after`}: {f.change}
                     </p>

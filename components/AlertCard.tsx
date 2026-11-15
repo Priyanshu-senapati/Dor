@@ -23,7 +23,7 @@ export function AlertCard({ alert, chain, me, elderName, now }: {
   const mine = owner?.id === me.id;
 
   return (
-    <li className={`rounded-xl border-l-4 bg-white p-4 shadow-sm ${alert.status === "acked" ? "border-leaf" : "border-kite"}`}>
+    <li className={`rounded-xl border p-4 ${alert.status === "acked" ? "border-leaf/30 bg-leaf/5" : "border-kite/40 bg-[#fff7f0]"}`}>
       <div className="flex flex-wrap items-center gap-2">
         <Pill tone={alert.status === "acked" ? "ok" : "warn"}>{KIND[alert.kind]}</Pill>
         <span className="text-sm text-muted">raised {showTime(alert.created_at)}</span>
