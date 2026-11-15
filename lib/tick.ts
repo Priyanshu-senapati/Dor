@@ -4,7 +4,7 @@ import { slotsForDay, classifySlot, slotKey, visitHeading } from "./schedule";
 import { addDays, istDate, showTime, showWhen } from "./time";
 import { actionLink, notifyOwner } from "./notify";
 import { sendMail } from "./mail";
-import { medName } from "./care";
+import { medName, reassignTo } from "./care";
 import { addTrail, raise } from "./alerts";
 import type { Alert, Appointment, Med, Member, Profile } from "./types";
 
@@ -30,6 +30,14 @@ async function tickProfile(profile: Profile, now: Date): Promise<number> {
   const today = istDate(now);
   const chain = await dutyChain(profile.id, today);
   if (!chain.length) return 0;
+  // Anyone away today: what they still hold moves to their cover (handoffs set to start on a later day land here).
+  const awayToday = await sql<{ member_id: string; cover_id: string | null; name: string }>`select a.member_id, a.cover_id, m.name
+    from away a join members m on m.id = a.member_id
+    where a.profile_id = ${profile.id} and a.starts_on <= ${today} and a.ends_on >= ${today}`;
+  for (const a of awayToday) {
+    const cover = chain.find((m) => m.id === a.cover_id);
+    if (cover) await reassignTo(profile, chain, a.member_id, a.name, cover);
+  }
   const first = chain[0];
   const helper = firstHelper(chain);
   let sent = 0;
@@ -134,5 +142,10 @@ export async function runTick(now: Date = new Date(), profileId?: string): Promi
     : await sql<Profile>`select id, code, elder_name from profiles`;
   let emails = 0;
   for (const p of profiles) emails += await tickProfile(p, now);
+  if (!profileId) {
+    // Housekeeping on the full run: these tables only matter for a few days.
+    await sql`delete from sent_keys where sent_at < now() - interval '3 days'`;
+    await sql`delete from mail_quota where day < ${addDays(istDate(now), -7)}`;
+  }
   return { profiles: profiles.length, emails };
 }

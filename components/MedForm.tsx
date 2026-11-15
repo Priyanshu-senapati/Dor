@@ -81,7 +81,7 @@ export function MedForm({ others, initial, submitLabel, needsApproval, elderName
                 {c.med.prescribed_by ? ` (${c.med.prescribed_by})` : ""}.
               </p>
             ))}
-            <p className="mt-1 text-sm text-muted">Taking both may double the dose. Check with the doctor or pharmacist before adding.</p>
+            <p className="mt-1 text-sm text-muted">Potential duplicate active ingredient. Review both prescriptions with the doctor or pharmacist.</p>
           </div>
         )}
       </div>

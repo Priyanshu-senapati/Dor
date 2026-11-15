@@ -51,7 +51,7 @@ export default async function Trace({ searchParams }: { searchParams: Promise<Fl
                 {flags.map((f) => (
                   <li key={f.symptom} className="rounded-xl border border-kite/40 bg-[#fff7f0] p-4">
                     <p className="text-lg font-bold">
-                      {cap(f.symptom)} started {f.daysAfter === 0 ? "the same day as" : `${f.daysAfter} day${f.daysAfter === 1 ? "" : "s"} after`}: {f.change}
+                      {cap(f.symptom)} was first logged {f.daysAfter === 0 ? "the same day as" : `${f.daysAfter} day${f.daysAfter === 1 ? "" : "s"} after`}: {f.change}
                     </p>
                     <p className="text-muted">
                       First logged {showDay(f.firstAt)} · logged {f.count} time{f.count === 1 ? "" : "s"} since

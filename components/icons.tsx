@@ -54,6 +54,13 @@ export const ArrowRightIcon = (p: P) => (
   </Icon>
 );
 
+export const CalendarIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="4" y="5" width="16" height="15" rx="2" />
+    <path d="M4 10h16M9 3v4M15 3v4" />
+  </Icon>
+);
+
 export const ChevronUpIcon = (p: P) => (
   <Icon {...p}>
     <path d="M6 15l6-6 6 6" />

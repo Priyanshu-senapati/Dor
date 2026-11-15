@@ -132,15 +132,28 @@ export default async function Circle({ searchParams }: { searchParams: Promise<F
             {away.length > 0 && (
               <ul className="mb-4 space-y-2">
                 {away.map((a) => (
-                  <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-paper px-4 py-3">
-                    <span>
-                      <strong>{nameOf(a.member_id)}</strong> away {day(a.starts_on)} to {day(a.ends_on)} ·{" "}
-                      <strong>{nameOf(a.cover_id)}</strong> covering
-                    </span>
-                    <form action={endAwayAction}>
-                      <input type="hidden" name="id" value={a.id} />
-                      <Submit className={quiet}>{a.member_id === member.id ? "I’m back" : "End cover"}</Submit>
-                    </form>
+                  <li key={a.id} className="rounded-xl bg-paper px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        <strong>{nameOf(a.member_id)}</strong> away {day(a.starts_on)} to {day(a.ends_on)} ·{" "}
+                        <strong>{nameOf(a.cover_id)}</strong> covering
+                      </span>
+                      <form action={endAwayAction}>
+                        <input type="hidden" name="id" value={a.id} />
+                        <Submit className={quiet}>{a.member_id === member.id ? "I’m back" : "End cover"}</Submit>
+                      </form>
+                    </div>
+                    {a.briefing && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-sm font-bold text-sky">Briefing sent to {nameOf(a.cover_id)}</summary>
+                        <p className="mt-2 max-w-prose">{a.briefing}</p>
+                        <p className="mt-1 text-sm text-muted">
+                          {a.briefing_ai
+                            ? "Written by Google Gemini from Dor’s records. Not medical advice."
+                            : "Written by Dor from its records."}
+                        </p>
+                      </details>
+                    )}
                   </li>
                 ))}
               </ul>

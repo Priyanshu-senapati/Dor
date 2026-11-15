@@ -25,7 +25,7 @@ export function DuplicateList({ dups }: { dups: { salt: string; meds: (SaltMed &
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-sm text-muted">Taking both may double the dose. Review with your doctor or pharmacist.</p>
+          <p className="mt-2 text-sm text-muted">Potential duplicate active ingredient. Review both prescriptions with the doctor or pharmacist.</p>
         </li>
       ))}
     </ul>

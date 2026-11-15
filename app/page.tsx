@@ -71,7 +71,7 @@ function CheckArtifact() {
         <p className="flex items-start gap-2 font-bold text-alarm">
           <AlertIcon className="mt-0.5 h-5 w-5" /> amlodipine is already in Telma-AM (Dr Meera Sharma, Cardiology).
         </p>
-        <p className="mt-1 text-sm text-muted">Taking both may double the dose. Check with the doctor or pharmacist first.</p>
+        <p className="mt-1 text-sm text-muted">Potential duplicate active ingredient. Review both prescriptions with the doctor or pharmacist.</p>
       </div>
     </div>
   );
@@ -96,7 +96,7 @@ function TraceArtifact() {
         ))}
       </ul>
       <div className="mt-4 rounded-xl border border-kite/40 bg-[#fff7f0] p-3">
-        <p className="font-bold">Dizziness started 2 days after the Telma-AM change.</p>
+        <p className="font-bold">Dizziness was first logged 2 days after the Telma-AM change.</p>
         <p className="text-sm text-muted">Added to the Doctor Brief for Monday’s visit.</p>
       </div>
     </div>
@@ -113,7 +113,7 @@ const ROWS = [
   {
     name: "Check",
     line: "Same salt, different brand",
-    text: "Elders see three or four doctors, and each writes brand names. Telma-AM already contains amlodipine; add Amlong from another doctor and Dor flags the double dose while you type, naming both prescribers.",
+    text: "Elders see three or four doctors, and each writes brand names. Telma-AM already contains amlodipine; add Amlong from another doctor and Dor flags the shared ingredient while you type, naming both prescribers.",
     artifact: <CheckArtifact />,
   },
   {

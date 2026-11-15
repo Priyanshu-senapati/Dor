@@ -3,8 +3,11 @@ import { doseRef, notifyHandled, notifyOwner } from "./notify";
 import { appUrl, sendMail } from "./mail";
 import { addTrail, raise } from "./alerts";
 import { doseOutcome } from "./outcomes";
+import { onDuty } from "./chain";
+import { visitCalendarLink } from "./gcal";
+import { handoffBriefing } from "./gemini";
 import { SKIP_REASONS } from "./symptoms";
-import { addDays, istDate, showDay, showTime, showWhen } from "./time";
+import { addDays, doseInstant, istDate, showDay, showTime, showWhen } from "./time";
 import type { Alert, Appointment, Med, Member, Profile } from "./types";
 
 export const isUuid = (s: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -18,7 +21,9 @@ const firstName = (p: Profile) => p.elder_name.split(" ")[0];
 
 /** Resolve the open alert with this key, and note how it ended on its trail. */
 async function resolveByKey(profile: Profile, refKey: string, resolution: string, by: Member | null): Promise<void> {
-  const done = await sql<{ id: string }>`update alerts set status = 'resolved', resolution = ${resolution}
+  // A resolved refill frees its key, so the same medicine can raise a fresh refill task later.
+  const done = await sql<{ id: string }>`update alerts set status = 'resolved', resolution = ${resolution},
+      ref_key = case when kind = 'refill' then ref_key || ':' || id else ref_key end
     where profile_id = ${profile.id} and ref_key = ${refKey} and status <> 'resolved' returning id`;
   for (const a of done) await addTrail(profile.id, a.id, by?.id ?? null, `Resolved: ${resolution}.`);
 }
@@ -83,9 +88,14 @@ export async function claimEscort(profile: Profile, chain: Member[], apptId: str
   await sql`update alerts set acked_by = ${by.id}, acked_at = now() where profile_id = ${profile.id} and ref_key = ${`escort:${appt.id}`}`;
   await resolveByKey(profile, `escort:${appt.id}`, label, by);
   await logEvent(profile.id, by.id, "escort", label);
-  await Promise.all(
-    chain.filter((m) => m.id !== by.id).map((m) => sendMail(m.email, label, ["No need to arrange anything else unless they ask for help."])),
-  );
+  const first = firstName(profile);
+  await Promise.all([
+    ...chain.filter((m) => m.id !== by.id).map((m) => sendMail(m.email, label, ["No need to arrange anything else unless they ask for help."])),
+    sendMail(by.email, `You’re taking ${first} to ${appt.doctor}`, [
+      `${showWhen(appt.starts_at)}${appt.location ? ` at ${appt.location}` : ""}.`,
+      "Everyone else in the circle has been told. Add it to your calendar so it isn’t forgotten.",
+    ], [{ label: "Add to Google Calendar", href: visitCalendarLink(appt, first, by.name, appUrl()) }]),
+  ]);
   return "Thanks! Everyone knows you're taking them.";
 }
 
@@ -123,6 +133,9 @@ export async function reportOutcome(profile: Profile, chain: Member[], alertId: 
   if (!alert || !dose) return "That alert couldn't be found.";
   if (alert.status === "resolved") return "This one is already resolved.";
   const first = firstName(profile);
+  if (outcome.pass && alert.status === "acked" && alert.acked_by !== by.id) {
+    return "Someone else is handling this one. Only they can pass it on.";
+  }
 
   // Answering "what happened" means you've picked it up.
   if (alert.status === "open" && !outcome.pass) {
@@ -139,12 +152,13 @@ export async function reportOutcome(profile: Profile, chain: Member[], alertId: 
     if (owner) {
       const [moved] = await sql<Alert>`update alerts set status = 'open', acked_by = null, acked_at = null,
           level = ${nextIdx}, owner_id = ${owner.id}, last_notified_at = now()
-        where id = ${alert.id} returning *`;
+        where id = ${alert.id} and status <> 'resolved' returning *`;
+      if (!moved) return "This one was resolved a moment ago.";
       await addTrail(profile.id, alert.id, null, `Passed to ${owner.name} straight away.`);
-      if (moved) await notifyOwner(profile, moved, owner, chain, `${note} Can you check on ${first}?`);
+      await notifyOwner(profile, moved, owner, chain, `${note} Can you check on ${first}?`);
       return `Passed to ${owner.name} straight away, with your note.`;
     }
-    await sql`update alerts set status = 'open', acked_by = null, acked_at = null where id = ${alert.id}`;
+    await sql`update alerts set status = 'open', acked_by = null, acked_at = null where id = ${alert.id} and status <> 'resolved'`;
     await Promise.all(
       chain.filter((m) => m.id !== by.id && m.role !== "elder").map((m) => sendMail(m.email, `Can anyone reach ${first}?`, [note, alert.title])),
     );
@@ -180,35 +194,71 @@ export async function claimRefill(profile: Profile, chain: Member[], medId: stri
 const dayRange = (from: string, to: string) =>
   `${showDay(new Date(`${from}T12:00:00+05:30`))} to ${showDay(new Date(`${to}T12:00:00+05:30`))}`;
 
+/**
+ * Move every open care event a member holds to their cover, at the cover's place in today's chain.
+ * Used when a handoff starts today, and by each reminder check while someone is away.
+ */
+export async function reassignTo(profile: Profile, duty: Member[], fromId: string, fromName: string, cover: Member): Promise<Alert[]> {
+  const level = Math.max(0, duty.findIndex((m) => m.id === cover.id));
+  const moved = await sql<Alert>`update alerts set owner_id = ${cover.id}, level = ${level},
+      acked_by = case when acked_by = ${fromId} then ${cover.id}::uuid else acked_by end
+    where profile_id = ${profile.id} and status <> 'resolved' and (owner_id = ${fromId} or acked_by = ${fromId}) returning *`;
+  for (const a of moved) await addTrail(profile.id, a.id, null, `Handed to ${cover.name}: ${fromName} is away.`);
+  return moved;
+}
+
+/** What the person covering needs to know, in a few sentences (Gemini if configured, plain text otherwise). */
+async function briefCover(profile: Profile, by: Member, cover: Member, range: string, items: string[]) {
+  const today = istDate(new Date());
+  const [meds, skips] = await Promise.all([
+    sql<Med>`select * from medications where profile_id = ${profile.id} and status = 'active' order by brand limit 20`,
+    sql<{ label: string }>`select label from events where profile_id = ${profile.id} and kind = 'skip'
+      and at > now() - interval '7 days' order by at desc limit 5`,
+  ]);
+  return handoffBriefing({
+    elderFirst: firstName(profile),
+    from: by.name,
+    to: cover.name,
+    range,
+    items,
+    meds: meds.map((m) => `${medName(m)} at ${m.times.map((t) => showTime(doseInstant(today, t))).join(" and ")}${m.instructions ? `, ${m.instructions}` : ""}`),
+    recent: skips.map((s) => s.label),
+  });
+}
+
 /** Handoff: while someone is away, the chain skips them and their open items move to their cover. */
 export async function setAway(profile: Profile, chain: Member[], by: Member, coverId: string, startsOn: string, endsOn: string): Promise<string> {
   const cover = chain.find((m) => m.id === coverId && m.id !== by.id && m.role !== "elder");
   if (!cover) return "Pick someone else in the circle to cover.";
-  await sql`insert into away (profile_id, member_id, cover_id, starts_on, ends_on)
-    values (${profile.id}, ${by.id}, ${cover.id}, ${startsOn}, ${endsOn})`;
+  const [busy] = await sql`select 1 from away where profile_id = ${profile.id} and member_id = ${cover.id}
+    and starts_on <= ${endsOn} and ends_on >= ${startsOn}`;
+  if (busy) return `${cover.name} is away during those dates too. Pick someone else.`;
+  const [row] = await sql<{ id: string }>`insert into away (profile_id, member_id, cover_id, starts_on, ends_on)
+    values (${profile.id}, ${by.id}, ${cover.id}, ${startsOn}, ${endsOn}) returning id`;
   const range = dayRange(startsOn, endsOn);
+  const today = istDate(new Date());
   const moved: string[] = [];
-  if (startsOn <= istDate(new Date())) {
-    const alerts = await sql<Alert>`update alerts set owner_id = ${cover.id},
-        acked_by = case when acked_by = ${by.id} then ${cover.id}::uuid else acked_by end
-      where profile_id = ${profile.id} and status <> 'resolved' and (owner_id = ${by.id} or acked_by = ${by.id}) returning *`;
-    for (const a of alerts) {
-      moved.push(a.title);
-      await addTrail(profile.id, a.id, by.id, `Handed to ${cover.name}: ${by.name} is away.`);
-    }
+  if (startsOn <= today) {
+    const away = await sql<{ member_id: string; starts_on: string; ends_on: string }>`select member_id, starts_on, ends_on
+      from away where profile_id = ${profile.id}`;
+    moved.push(...(await reassignTo(profile, onDuty(chain, away, today), by.id, by.name, cover)).map((a) => a.title));
   }
+  // Only future visits move; past visits keep who actually took them.
   const visits = await sql<Appointment>`update appointments set escort_id = ${cover.id}
-    where profile_id = ${profile.id} and escort_id = ${by.id}
+    where profile_id = ${profile.id} and escort_id = ${by.id} and starts_at > now()
       and starts_at >= ${new Date(`${startsOn}T00:00:00+05:30`)} and starts_at < ${new Date(`${addDays(endsOn, 1)}T00:00:00+05:30`)}
     returning *`;
   moved.push(...visits.map((v) => `taking ${profile.elder_name} to ${v.doctor} (${showWhen(v.starts_at)})`));
 
+  const briefing = await briefCover(profile, by, cover, range, moved);
+  await sql`update away set briefing = ${briefing.text}, briefing_ai = ${briefing.ai} where id = ${row.id}`;
   await logEvent(profile.id, by.id, "handoff", `${by.name} is away ${range}. ${cover.name} is covering.`);
   await sendMail(cover.email, `You’re covering for ${by.name}, ${range}`, [
     `${by.name} is away ${range}. While they’re away, Dor skips them and their alerts come to you.`,
-    moved.length ? `Now yours: ${moved.join("; ")}.` : "Nothing is open right now.",
-  ], [{ label: "Open Dor", href: `${appUrl()}/p` }]);
-  return `Done. ${cover.name} is covering ${range}${moved.length ? ` and now owns ${moved.length} item${moved.length > 1 ? "s" : ""}` : ""}.`;
+    briefing.text,
+    briefing.ai ? "This briefing was written by Google Gemini from Dor’s records. It is not medical advice." : "",
+  ].filter(Boolean), [{ label: "Open Dor", href: `${appUrl()}/p` }]);
+  return `Done. ${cover.name} is covering ${range}${moved.length ? ` and now owns ${moved.length} item${moved.length > 1 ? "s" : ""}` : ""}. A briefing went to ${cover.name}.`;
 }
 
 export async function endAway(profile: Profile, awayId: string, by: Member): Promise<string> {

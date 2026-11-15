@@ -10,7 +10,9 @@ import { AlertCard } from "@/components/AlertCard";
 import { DoseActions } from "@/components/DoseActions";
 import { DuplicateList } from "@/components/DuplicateList";
 import { Card, Flash, Pill, primary, quiet, secondary, type FlashParams } from "@/components/ui";
-import { AlertIcon, ArrowRightIcon, CheckIcon, RefreshIcon } from "@/components/icons";
+import { AlertIcon, ArrowRightIcon, CalendarIcon, CheckIcon, RefreshIcon } from "@/components/icons";
+import { visitCalendarLink } from "@/lib/gcal";
+import { appUrl } from "@/lib/mail";
 import { Submit } from "@/components/Submit";
 import type { Alert, Appointment, DoseLog, Med } from "@/lib/types";
 
@@ -268,9 +270,19 @@ export default async function Today({ searchParams }: { searchParams: Promise<Fl
                     <Submit className={primary}>I’ll take {profile.elder_name}</Submit>
                   </form>
                 )}
-                <Link href={`/p/brief/${nextAppt.id}`} className={`${quiet} mt-2 -ml-3`}>
-                  Open the Doctor Brief <ArrowRightIcon className="h-4 w-4" />
-                </Link>
+                <div className="mt-2 -ml-3 flex flex-wrap gap-1">
+                  <Link href={`/p/brief/${nextAppt.id}`} className={quiet}>
+                    Open the Doctor Brief <ArrowRightIcon className="h-4 w-4" />
+                  </Link>
+                  <a
+                    href={visitCalendarLink(nextAppt, first, nextAppt.escort_id ? nameOf(nextAppt.escort_id) : null, appUrl())}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={quiet}
+                  >
+                    <CalendarIcon className="h-4 w-4" /> Add to Google Calendar<span className="sr-only"> (opens in a new tab)</span>
+                  </a>
+                </div>
               </>
             ) : (
               <Link href="/p/appointments" className={`${quiet} -ml-3`}>

@@ -118,6 +118,21 @@ create table if not exists away (
   created_at timestamptz not null default now()
 );
 
+-- The briefing the cover received at handoff, and whether Gemini wrote it.
+alter table away add column if not exists briefing text not null default '';
+alter table away add column if not exists briefing_ai boolean not null default false;
+
+-- Indexes for the queries every page and every 5-minute check run (all are scoped by profile).
+create index if not exists members_profile_idx on members (profile_id);
+create index if not exists medications_profile_status_idx on medications (profile_id, status);
+create index if not exists dose_logs_profile_at_idx on dose_logs (profile_id, at);
+create index if not exists appointments_profile_starts_idx on appointments (profile_id, starts_at);
+create index if not exists alerts_profile_status_idx on alerts (profile_id, status);
+create index if not exists events_profile_at_idx on events (profile_id, at desc);
+create index if not exists events_alert_idx on events (alert_id) where alert_id is not null;
+create index if not exists away_profile_ends_idx on away (profile_id, ends_on);
+create index if not exists sent_keys_sent_at_idx on sent_keys (sent_at);
+
 create table if not exists symptoms (
   id uuid primary key default gen_random_uuid(),
   profile_id uuid not null references profiles(id) on delete cascade,
@@ -126,3 +141,5 @@ create table if not exists symptoms (
   note text not null default '',
   at timestamptz not null default now()
 );
+
+create index if not exists symptoms_profile_at_idx on symptoms (profile_id, at desc);

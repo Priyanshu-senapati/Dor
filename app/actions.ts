@@ -15,10 +15,8 @@ import {
   ackAlert, activateMed, claimEscort, claimRefill, endAway, isUuid, logEvent, medName, recordDose, reportOutcome, resolveAlert, setAway,
 } from "@/lib/care";
 import type { EmailAction, Med, Role } from "@/lib/types";
+import { cleanTimes, isDate, isEmail, isTime, normalizeCode, parseSalts, safeReturnPath } from "@/lib/validate";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const MAX_MEMBERS = 12;
 const MAX_DEMO_MEMBERS = 40;
@@ -38,10 +36,7 @@ function back(path: string, message: string, kind: "error" | "ok" = "error"): ne
 }
 
 /** Only allow redirects back into the app. */
-const returnTo = (fd: FormData, fallback = "/p") => {
-  const from = text(fd, "from", 80);
-  return /^\/p(\/[a-z]*)?$/.test(from) ? from : fallback;
-};
+const returnTo = (fd: FormData, fallback = "/p") => safeReturnPath(text(fd, "from", 80), fallback);
 
 const refresh = () => revalidatePath("/p", "layout");
 
@@ -56,8 +51,8 @@ export async function createProfile(fd: FormData): Promise<void> {
   const passcode = text(fd, "passcode", 32);
   if (!elderName || !name) back("/#start", "Please fill in the names.");
   if (!isRole(role)) back("/#start", "Please choose who you are.");
-  if (!EMAIL_RE.test(email)) back("/#start", "Please enter a valid email. Dor sends reminders there.");
-  if (elderEmail && !EMAIL_RE.test(elderEmail)) back("/#start", "That elder email doesn't look right.");
+  if (!isEmail(email)) back("/#start", "Please enter a valid email. Dor sends reminders there.");
+  if (elderEmail && !isEmail(elderEmail)) back("/#start", "That elder email doesn't look right.");
   if (passcode.length < 4) back("/#start", "The passcode needs at least 4 characters.");
 
   const code = `DOR-${Array.from({ length: 4 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join("")}`;
@@ -74,13 +69,12 @@ export async function createProfile(fd: FormData): Promise<void> {
 }
 
 export async function joinProfile(fd: FormData): Promise<void> {
-  const raw = text(fd, "code", 20).toUpperCase().replace(/\s+/g, "");
-  const code = raw.startsWith("DOR-") ? raw : `DOR-${raw.replace(/^DOR/, "")}`;
+  const code = normalizeCode(text(fd, "code", 20));
   const passcode = text(fd, "passcode", 32);
   const name = text(fd, "name", 60);
   const email = text(fd, "email", 120).toLowerCase();
   const role = text(fd, "role");
-  if (!name || !EMAIL_RE.test(email)) back("/#join", "Please enter your name and a valid email.");
+  if (!name || !isEmail(email)) back("/#join", "Please enter your name and a valid email.");
   if (!isRole(role)) back("/#join", "Please choose who you are.");
 
   const demo = code === DEMO_CODE;
@@ -143,7 +137,7 @@ export async function saveMed(fd: FormData): Promise<void> {
   const { profile, member, elder } = await requireCircle();
   const brand = text(fd, "brand", 80);
   if (!brand) back("/p/meds", "Enter the medicine's name as written on the strip.");
-  const times = [...new Set(fd.getAll("time").map(String).filter((t) => TIME_RE.test(t)))].sort();
+  const times = cleanTimes(fd.getAll("time").map(String));
   if (!times.length) back("/p/meds", "Pick at least one time of day.");
   if (times.length > MAX_TIMES_PER_MED) back("/p/meds", `At most ${MAX_TIMES_PER_MED} times a day per medicine.`);
   const [{ n }] = await sql<{ n: number }>`select count(*)::int as n from medications
@@ -151,7 +145,7 @@ export async function saveMed(fd: FormData): Promise<void> {
   if (n >= MAX_MEDS) back("/p/meds", `A circle can track up to ${MAX_MEDS} medicines. Stop one first.`);
 
   const known = resolveSalts(brand);
-  const salts = known.length ? known : text(fd, "salt", 80).toLowerCase().split(/\s*[,+]\s*/).filter(Boolean);
+  const salts = known.length ? known : parseSalts(text(fd, "salt", 80));
   const replaces = text(fd, "replaces", 40);
   if (replaces) {
     const [old] = isUuid(replaces)
@@ -161,7 +155,7 @@ export async function saveMed(fd: FormData): Promise<void> {
   }
   const date = (k: string) => {
     const v = text(fd, k, 10);
-    return DATE_RE.test(v) ? v : null;
+    return isDate(v) ? v : null;
   };
   const int = (k: string, min: number, max: number) => {
     const raw = text(fd, k, 6);
@@ -274,7 +268,7 @@ export async function setAwayAction(fd: FormData): Promise<void> {
   const starts = text(fd, "starts", 10);
   const ends = text(fd, "ends", 10);
   const today = istDate(new Date());
-  if (!DATE_RE.test(starts) || !DATE_RE.test(ends) || ends < starts || ends < today) back("/p/circle", "Pick dates from today onwards, with the end after the start.");
+  if (!isDate(starts) || !isDate(ends) || starts < today || ends < starts) back("/p/circle", "Pick dates from today onwards, with the end on or after the start.");
   if ((Date.parse(ends) - Date.parse(starts)) / 86_400_000 > MAX_AWAY_DAYS) back("/p/circle", `Cover can be set for up to ${MAX_AWAY_DAYS} days at a time.`);
   if (member.role === "elder") back("/p/circle", "The elder is always first in the chain.");
   const msg = await setAway(profile, chain, member, text(fd, "cover", 40), starts, ends);
@@ -338,7 +332,7 @@ export async function addAppointment(fd: FormData): Promise<void> {
   const doctor = text(fd, "doctor", 80);
   const date = text(fd, "date", 10);
   const time = text(fd, "time", 5);
-  if (!doctor || !DATE_RE.test(date) || !TIME_RE.test(time)) back("/p/appointments", "Enter the doctor, date and time.");
+  if (!doctor || !isDate(date) || !isTime(time)) back("/p/appointments", "Enter the doctor, date and time.");
   const startsAt = new Date(`${date}T${time}:00+05:30`);
   const [{ n }] = await sql<{ n: number }>`select count(*)::int as n from appointments
     where profile_id = ${profile.id} and starts_at > now()`;

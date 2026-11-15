@@ -70,7 +70,7 @@ export function AlertCard({ alert, chain, duty, me, elderName, now, trail = [] }
             <Submit className={primary}>{alert.kind === "escort" ? `I’ll take ${first}` : "I’m on it"}</Submit>
           </form>
         )}
-        {dose && (me.role === "elder" || !claimed) && <DoseActions medId={dose.med} at={dose.at} from="/p" />}
+        {dose && (me.role === "elder" || !claimed || acker?.id !== me.id) && <DoseActions medId={dose.med} at={dose.at} from="/p" />}
         {claimed && !dose && (
           <form action={resolveAlertAction}>
             <input type="hidden" name="id" value={alert.id} />
@@ -79,7 +79,7 @@ export function AlertCard({ alert, chain, duty, me, elderName, now, trail = [] }
         )}
       </div>
 
-      {dose && claimed && me.role !== "elder" && (
+      {dose && claimed && acker?.id === me.id && me.role !== "elder" && (
         <fieldset className="mt-3">
           <legend className="mb-2 font-bold">What happened?</legend>
           <div className="grid gap-2 sm:grid-cols-2">

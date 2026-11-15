@@ -4,7 +4,9 @@ import { requireCircle } from "@/lib/session";
 import { showWhen } from "@/lib/time";
 import { addAppointment, addQuestion, claimEscortAction } from "../../actions";
 import { Card, Flash, field, label, primary, quiet, type FlashParams } from "@/components/ui";
-import { ArrowRightIcon, CheckIcon } from "@/components/icons";
+import { ArrowRightIcon, CalendarIcon, CheckIcon } from "@/components/icons";
+import { visitCalendarLink } from "@/lib/gcal";
+import { appUrl } from "@/lib/mail";
 import { Submit } from "@/components/Submit";
 import type { Appointment } from "@/lib/types";
 
@@ -16,6 +18,7 @@ export default async function Appointments({ searchParams }: { searchParams: Pro
   const upcoming = appts.filter((a) => a.starts_at > now);
   const past = appts.filter((a) => a.starts_at <= now).reverse();
   const nameOf = (id: string | null) => chain.find((m) => m.id === id)?.name;
+  const first = profile.elder_name.split(" ")[0];
 
   return (
     <div className="space-y-6">
@@ -58,9 +61,14 @@ export default async function Appointments({ searchParams }: { searchParams: Pro
                   <Submit className={quiet} pending="Adding…">Add</Submit>
                 </form>
               </div>
-              <Link href={`/p/brief/${a.id}`} className={`${quiet} -ml-3 mt-3`}>
-                Open the Doctor Brief <ArrowRightIcon className="h-4 w-4" />
-              </Link>
+              <div className="mt-3 -ml-3 flex flex-wrap gap-1">
+                <Link href={`/p/brief/${a.id}`} className={quiet}>
+                  Open the Doctor Brief <ArrowRightIcon className="h-4 w-4" />
+                </Link>
+                <a href={visitCalendarLink(a, first, nameOf(a.escort_id) ?? null, appUrl())} target="_blank" rel="noopener noreferrer" className={quiet}>
+                  <CalendarIcon className="h-4 w-4" /> Add to Google Calendar<span className="sr-only"> (opens in a new tab)</span>
+                </a>
+              </div>
             </Card>
           ))}
           {past.length > 0 && (

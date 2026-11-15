@@ -29,6 +29,8 @@ export interface AwayRow {
   cover_id: string | null;
   starts_on: string;
   ends_on: string;
+  briefing: string;
+  briefing_ai: boolean;
 }
 
 export interface Circle {
@@ -46,7 +48,7 @@ export async function loadCircle(profileId: string, memberId: string): Promise<C
   const [[profile], members, away] = await Promise.all([
     sql<Profile>`select id, code, elder_name from profiles where id = ${profileId}`,
     sql<Member>`select * from members where profile_id = ${profileId}`,
-    sql<AwayRow>`select id, member_id, cover_id, starts_on, ends_on from away
+    sql<AwayRow>`select id, member_id, cover_id, starts_on, ends_on, briefing, briefing_ai from away
       where profile_id = ${profileId} and ends_on >= ${istDate(new Date())} order by starts_on`,
   ]);
   if (!profile) return null;

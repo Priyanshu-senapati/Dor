@@ -77,6 +77,17 @@ export default async function Act({ params }: { params: Promise<{ token: string 
         </Shell>
       );
     }
+    if (alert.status === "resolved" && alert.acked_by === circle.member.id) {
+      return (
+        <Shell>
+          <p className="flex items-center gap-2 font-bold text-leaf">
+            <CheckIcon /> Thank you. Everyone in the circle has been told.
+          </p>
+          <h1 className="font-display mt-2 text-3xl">{alert.resolution || alert.title}</h1>
+          <Link href="/p" className={`${primary} mt-5`}>Open Dor</Link>
+        </Shell>
+      );
+    }
     if (alert.status !== "open") {
       return (
         <Shell>
