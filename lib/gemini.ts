@@ -52,6 +52,8 @@ export interface GeminiModel {
 
 const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_TIMEOUT_MS = 8000;
+// Generation can take a while on "thinking" models; a handoff is a one-off action, so wait longer for it.
+const GENERATE_TIMEOUT_MS = 25_000;
 
 /** A plain-text Flash model from the key's model list ("models/gemini-3-flash" → "gemini-3-flash"). */
 export function chooseFlashModel(models: GeminiModel[]): string | null {
@@ -72,9 +74,10 @@ function generate(key: string, model: string, prompt: string): Promise<Response>
     headers: { "content-type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 400 },
+      // Generous budget: on thinking models the reasoning counts against it, and the prompt caps the answer at ~110 words.
+      generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
     }),
-    signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
+    signal: AbortSignal.timeout(GENERATE_TIMEOUT_MS),
   });
 }
 
