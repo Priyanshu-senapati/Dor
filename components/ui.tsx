@@ -39,21 +39,18 @@ export function Flash({ ok, error }: { ok?: string; error?: string }) {
 
 export function Card({
   title,
-  eyebrow,
   children,
   className = "",
   id,
 }: {
   title?: ReactNode;
-  eyebrow?: string;
   children: ReactNode;
   className?: string;
   id?: string;
 }) {
   return (
-    <section id={id} className={`rounded-2xl border border-line bg-white p-5 shadow-[0_1px_0_#e8dfd0] ${className}`}>
-      {eyebrow && <p className="text-xs font-bold uppercase tracking-[0.16em] text-kite-deep">{eyebrow}</p>}
-      {title && <h2 className="font-display mb-3 mt-1 text-2xl">{title}</h2>}
+    <section id={id} className={`scroll-mt-24 rounded-2xl border border-line bg-white p-5 shadow-[0_1px_2px_rgba(31,42,68,0.04),0_8px_24px_-16px_rgba(31,42,68,0.18)] ${className}`}>
+      {title && <h2 className="font-display mb-3 text-2xl leading-tight text-balance">{title}</h2>}
       {children}
     </section>
   );

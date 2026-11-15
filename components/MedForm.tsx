@@ -4,6 +4,8 @@ import { useId, useMemo, useState } from "react";
 import { BRAND_NAMES, resolveSalts, type SaltMed } from "@/lib/salts";
 import { saveMed } from "@/app/actions";
 import { field, label, primary } from "./ui";
+import { AlertIcon } from "./icons";
+import { Submit } from "./Submit";
 import type { Med } from "@/lib/types";
 
 const PRESETS = [
@@ -73,8 +75,9 @@ export function MedForm({ others, initial, submitLabel, needsApproval, elderName
         {clashes.length > 0 && (
           <div role="alert" className="mt-3 rounded-xl border border-alarm/30 bg-alarm/5 p-3">
             {clashes.map((c) => (
-              <p key={`${c.salt}-${c.med.id}`} className="font-bold text-alarm">
-                ⚠ {c.salt} is already in {c.med.brand}
+              <p key={`${c.salt}-${c.med.id}`} className="flex items-start gap-2 font-bold text-alarm">
+                <AlertIcon className="mt-0.5 h-5 w-5" />
+                {c.salt} is already in {c.med.brand}
                 {c.med.prescribed_by ? ` (${c.med.prescribed_by})` : ""}.
               </p>
             ))}
@@ -139,7 +142,7 @@ export function MedForm({ others, initial, submitLabel, needsApproval, elderName
       </div>
 
       {needsApproval && <p className="text-sm text-muted">{elderName} will be asked to approve this before it enters the schedule.</p>}
-      <button className={`${primary} w-full`}>{submitLabel}</button>
+      <Submit className={`${primary} w-full`}>{submitLabel}</Submit>
     </form>
   );
 }

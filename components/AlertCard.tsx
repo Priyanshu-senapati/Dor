@@ -5,6 +5,8 @@ import { showTime } from "@/lib/time";
 import type { Alert, Member } from "@/lib/types";
 import { DoseActions } from "./DoseActions";
 import { Pill, primary, quiet } from "./ui";
+import { CheckIcon } from "./icons";
+import { Submit } from "./Submit";
 
 const KIND = { dose: "Missed dose", refill: "Refill", escort: "Doctor visit" } as const;
 
@@ -32,8 +34,8 @@ export function AlertCard({ alert, chain, me, elderName, now }: {
       <p className="text-muted">{alert.body}</p>
 
       {alert.status === "acked" ? (
-        <p className="mt-3 font-bold text-leaf">
-          ✓ {acker?.id === me.id ? "You are" : `${acker?.name ?? "Someone"} is`} handling this{alert.acked_at ? ` (since ${showTime(alert.acked_at)})` : ""}
+        <p className="mt-3 flex items-center gap-2 font-bold text-leaf">
+          <CheckIcon /> {acker?.id === me.id ? "You are" : `${acker?.name ?? "Someone"} is`} handling this{alert.acked_at ? ` (since ${showTime(alert.acked_at)})` : ""}
         </p>
       ) : (
         <p className="mt-3 font-bold">
@@ -48,14 +50,14 @@ export function AlertCard({ alert, chain, me, elderName, now }: {
         {alert.status === "open" && !(dose && me.role === "elder") && (
           <form action={ackAlertAction}>
             <input type="hidden" name="id" value={alert.id} />
-            <button className={primary}>{alert.kind === "escort" ? `I’ll take ${elderName}` : "I’m on it"}</button>
+            <Submit className={primary}>{alert.kind === "escort" ? `I’ll take ${elderName}` : "I’m on it"}</Submit>
           </form>
         )}
         {dose && <DoseActions medId={dose.med} at={dose.at} from="/p" />}
         {alert.status === "acked" && !dose && (
           <form action={resolveAlertAction}>
             <input type="hidden" name="id" value={alert.id} />
-            <button className={quiet}>Mark done</button>
+            <Submit className={quiet}>Mark done</Submit>
           </form>
         )}
       </div>

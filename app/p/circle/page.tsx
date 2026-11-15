@@ -4,6 +4,7 @@ import { ESCALATE_EVERY_MIN } from "@/lib/chain";
 import { showWhen } from "@/lib/time";
 import { moveMember } from "../../actions";
 import { Card, Flash, Pill, quiet, type FlashParams } from "@/components/ui";
+import { ChevronDownIcon, ChevronUpIcon } from "@/components/icons";
 import type { Alert } from "@/lib/types";
 
 export default async function Circle({ searchParams }: { searchParams: Promise<FlashParams> }) {
@@ -17,7 +18,7 @@ export default async function Circle({ searchParams }: { searchParams: Promise<F
       <Flash ok={sp.ok} error={sp.error} />
       <h1 className="font-display text-4xl">The chain</h1>
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <Card eyebrow="Hold" title="Who holds the string, in order">
+        <Card title="Who holds the string, in order">
           <ol className="space-y-2">
             {chain.map((m, i) => (
               <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-paper px-4 py-3">
@@ -36,7 +37,9 @@ export default async function Circle({ searchParams }: { searchParams: Promise<F
                       <form key={dir} action={moveMember}>
                         <input type="hidden" name="id" value={m.id} />
                         <input type="hidden" name="dir" value={dir} />
-                        <button className={quiet} aria-label={`Move ${m.name} ${dir}`}>{dir === "up" ? "↑" : "↓"}</button>
+                        <button className={quiet} aria-label={`Move ${m.name} ${dir}`}>
+                          {dir === "up" ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                        </button>
                       </form>
                     ))}
                   </div>
@@ -52,7 +55,7 @@ export default async function Circle({ searchParams }: { searchParams: Promise<F
         </Card>
 
         <div className="space-y-6">
-          <Card eyebrow="Invite" title="Add family to the chain">
+          <Card title="Add family to the chain">
             <p className="text-muted">Share these two things privately. New people join at the end of the chain.</p>
             <p className="mt-3 text-lg">
               Code: <strong className="font-display text-2xl tracking-wider">{profile.code}</strong>
@@ -60,7 +63,7 @@ export default async function Circle({ searchParams }: { searchParams: Promise<F
             <p className="text-muted">Passcode: the one chosen when the circle was made.</p>
           </Card>
 
-          <Card eyebrow="Record" title="Recent alerts">
+          <Card title="Recent alerts">
             {history.length === 0 && <p className="text-muted">No alerts yet.</p>}
             <ul className="space-y-3">
               {history.map((a) => (

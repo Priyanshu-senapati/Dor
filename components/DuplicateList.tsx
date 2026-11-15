@@ -1,4 +1,5 @@
 import type { SaltMed } from "@/lib/salts";
+import { AlertIcon } from "./icons";
 
 const when = (d: string | null) =>
   d ? new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" }) : null;
@@ -9,7 +10,9 @@ export function DuplicateList({ dups }: { dups: { salt: string; meds: (SaltMed &
     <ul className="space-y-3">
       {dups.map((d) => (
         <li key={d.salt} className="rounded-xl bg-alarm/5 p-4">
-          <p className="font-bold text-alarm">⚠ {d.salt[0].toUpperCase() + d.salt.slice(1)} appears in {d.meds.length} medicines</p>
+          <p className="flex items-start gap-2 font-bold text-alarm">
+            <AlertIcon className="mt-0.5 h-5 w-5" /> {d.salt[0].toUpperCase() + d.salt.slice(1)} appears in {d.meds.length} medicines
+          </p>
           <ul className="mt-2 space-y-1">
             {d.meds.map((m) => (
               <li key={m.id}>

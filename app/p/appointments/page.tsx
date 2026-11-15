@@ -4,6 +4,8 @@ import { requireCircle } from "@/lib/session";
 import { showWhen } from "@/lib/time";
 import { addAppointment, addQuestion, claimEscortAction } from "../../actions";
 import { Card, Flash, field, label, primary, quiet, type FlashParams } from "@/components/ui";
+import { ArrowRightIcon, CheckIcon } from "@/components/icons";
+import { Submit } from "@/components/Submit";
 import type { Appointment } from "@/lib/types";
 
 export default async function Appointments({ searchParams }: { searchParams: Promise<FlashParams> }) {
@@ -27,14 +29,17 @@ export default async function Appointments({ searchParams }: { searchParams: Pro
             </Card>
           )}
           {upcoming.map((a) => (
-            <Card key={a.id} eyebrow={showWhen(a.starts_at)} title={`${a.doctor}${a.specialty ? ` · ${a.specialty}` : ""}`}>
+            <Card key={a.id} title={`${a.doctor}${a.specialty ? ` · ${a.specialty}` : ""}`}>
+              <p className="font-bold text-kite-deep">{showWhen(a.starts_at)}</p>
               <p className="text-muted">{[a.location, a.purpose].filter(Boolean).join(" · ")}</p>
               {a.escort_id ? (
-                <p className="mt-3 font-bold text-leaf">✓ {nameOf(a.escort_id)} is taking {profile.elder_name}</p>
+                <p className="mt-3 flex items-center gap-2 font-bold text-leaf">
+                  <CheckIcon /> {nameOf(a.escort_id)} is taking {profile.elder_name}
+                </p>
               ) : (
                 <form action={claimEscortAction} className="mt-3">
                   <input type="hidden" name="id" value={a.id} />
-                  <button className={primary}>I’ll take {profile.elder_name}</button>
+                  <Submit className={primary}>I’ll take {profile.elder_name}</Submit>
                 </form>
               )}
               <div className="mt-4">
@@ -50,14 +55,16 @@ export default async function Appointments({ searchParams }: { searchParams: Pro
                   <input type="hidden" name="id" value={a.id} />
                   <label className="sr-only" htmlFor={`q-${a.id}`}>Add a question</label>
                   <input id={`q-${a.id}`} name="question" maxLength={300} placeholder="Add a question…" className={field} />
-                  <button className={quiet}>Add</button>
+                  <Submit className={quiet} pending="Adding…">Add</Submit>
                 </form>
               </div>
-              <Link href={`/p/brief/${a.id}`} className={`${quiet} -ml-3 mt-3`}>Open the Doctor Brief →</Link>
+              <Link href={`/p/brief/${a.id}`} className={`${quiet} -ml-3 mt-3`}>
+                Open the Doctor Brief <ArrowRightIcon className="h-4 w-4" />
+              </Link>
             </Card>
           ))}
           {past.length > 0 && (
-            <Card eyebrow="Past" title="Earlier visits">
+            <Card title="Earlier visits">
               <ul className="space-y-1 text-muted">
                 {past.map((a) => (
                   <li key={a.id}>
@@ -70,7 +77,7 @@ export default async function Appointments({ searchParams }: { searchParams: Pro
           )}
         </div>
 
-        <Card eyebrow="New" title="Add a visit">
+        <Card title="Add a visit">
           <form action={addAppointment} className="space-y-3">
             <div>
               <label className={label} htmlFor="doctor">Doctor</label>
@@ -102,7 +109,7 @@ export default async function Appointments({ searchParams }: { searchParams: Pro
               <label className={label} htmlFor="questions">Questions to ask (one per line)</label>
               <textarea id="questions" name="questions" rows={3} maxLength={1000} className={field} />
             </div>
-            <button className={`${primary} w-full`}>Add visit</button>
+            <Submit className={`${primary} w-full`}>Add visit</Submit>
           </form>
         </Card>
       </div>

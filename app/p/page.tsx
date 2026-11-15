@@ -9,6 +9,8 @@ import { AlertCard } from "@/components/AlertCard";
 import { DoseActions } from "@/components/DoseActions";
 import { DuplicateList } from "@/components/DuplicateList";
 import { Card, Flash, Pill, primary, quiet, secondary, type FlashParams } from "@/components/ui";
+import { AlertIcon, ArrowRightIcon, CheckIcon, RefreshIcon } from "@/components/icons";
+import { Submit } from "@/components/Submit";
 import type { Alert, Appointment, DoseLog, Med } from "@/lib/types";
 
 const STATE = {
@@ -59,13 +61,15 @@ export default async function Today({ searchParams }: { searchParams: Promise<Fl
           <h1 className="font-display text-4xl">Today for {profile.elder_name}</h1>
         </div>
         <form action={checkNow} className="no-print">
-          <button className={quiet} title="Dor checks every 5 minutes on its own; this runs it now.">↻ Run the reminder check now</button>
+          <Submit className={quiet} pending="Checking…">
+            <RefreshIcon className="h-4 w-4" /> Run the reminder check now
+          </Submit>
         </form>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
         <div className="space-y-6">
-          <Card eyebrow="Hold" title={alerts.length ? "Needs someone" : "Nothing needs anyone right now"}>
+          <Card title={alerts.length ? "Needs someone" : "Nothing needs anyone right now"}>
             {alerts.length ? (
               <ul className="space-y-3">
                 {alerts.map((a) => (
@@ -81,7 +85,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<Fl
           </Card>
 
           {pending.length > 0 && (
-            <Card eyebrow="Waiting for approval" title={isElder ? "Your family suggested a change" : `Waiting for ${elder?.name ?? "the elder"} to approve`}>
+            <Card title={isElder ? "Your family suggested a change" : `Waiting for ${elder?.name ?? "the elder"} to approve`}>
               <ul className="space-y-3">
                 {pending.map((m) => {
                   const clash = dups.find((d) => d.meds.some((x) => x.id === m.id));
@@ -92,8 +96,8 @@ export default async function Today({ searchParams }: { searchParams: Promise<Fl
                         Suggested by {nameOf(m.created_by)}{m.prescribed_by ? `, prescribed by ${m.prescribed_by}` : ""}
                       </p>
                       {clash && (
-                        <p className="mt-2 font-bold text-alarm">
-                          ⚠ Contains {clash.salt}, already in {clash.meds.filter((x) => x.id !== m.id).map((x) => x.brand).join(", ")}.
+                        <p className="mt-2 flex items-start gap-2 font-bold text-alarm">
+                          <AlertIcon className="mt-0.5 h-5 w-5" /> Contains {clash.salt}, already in {clash.meds.filter((x) => x.id !== m.id).map((x) => x.brand).join(", ")}.
                         </p>
                       )}
                       {isElder && (
@@ -102,13 +106,13 @@ export default async function Today({ searchParams }: { searchParams: Promise<Fl
                             <input type="hidden" name="id" value={m.id} />
                             <input type="hidden" name="decision" value="approve" />
                             <input type="hidden" name="from" value="/p" />
-                            <button className={primary}>Yes, add it</button>
+                            <Submit className={primary}>Yes, add it</Submit>
                           </form>
                           <form action={decideMed}>
                             <input type="hidden" name="id" value={m.id} />
                             <input type="hidden" name="decision" value="decline" />
                             <input type="hidden" name="from" value="/p" />
-                            <button className={secondary}>No</button>
+                            <Submit className={secondary}>No</Submit>
                           </form>
                         </div>
                       )}
@@ -119,7 +123,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<Fl
             </Card>
           )}
 
-          <Card eyebrow="Doses" title="Today’s medicines">
+          <Card title="Today’s medicines">
             {todays.length ? (
               <ul className="divide-y divide-line">
                 {todays.map((s) => {
@@ -131,7 +135,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<Fl
                   return (
                     <li key={slotKey(s)} className="flex flex-wrap items-center justify-between gap-3 py-3">
                       <div className="flex items-center gap-4">
-                        <span className="w-20 font-display text-xl">{showTime(s.at)}</span>
+                        <span className="w-20 font-display text-xl tabular-nums">{showTime(s.at)}</span>
                         <div>
                           <p className="font-bold">{med.brand} {med.dose}</p>
                           <p className="text-sm text-muted">{med.instructions || med.salts.join(" + ")}</p>
@@ -139,7 +143,11 @@ export default async function Today({ searchParams }: { searchParams: Promise<Fl
                       </div>
                       {state === "done" && log ? (
                         <p className={`font-bold ${log.status === "taken" ? "text-leaf" : "text-warn"}`}>
-                          {log.status === "taken" ? "✓ Taken" : `Chose to skip${log.reason ? `: ${log.reason}` : ""}`}
+                          {log.status === "taken" ? (
+                            <span className="inline-flex items-center gap-1.5"><CheckIcon /> Taken</span>
+                          ) : (
+                            `Chose to skip${log.reason ? `: ${log.reason}` : ""}`
+                          )}
                           <span className="block text-sm font-normal text-muted">marked by {nameOf(log.marked_by)}</span>
                         </p>
                       ) : (
@@ -161,7 +169,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<Fl
         </div>
 
         <div className="space-y-6">
-          <Card eyebrow="Last 7 days" title={pct === null ? "No doses yet" : `${pct}% taken`}>
+          <Card title={pct === null ? "No doses yet this week" : `${pct}% taken this week`}>
             <div className="h-3 overflow-hidden rounded-full bg-line" role="img" aria-label={`${adh.taken} of ${adh.due} doses taken`}>
               <div className="h-full rounded-full bg-leaf" style={{ width: `${pct ?? 0}%` }} />
             </div>
@@ -169,28 +177,34 @@ export default async function Today({ searchParams }: { searchParams: Promise<Fl
           </Card>
 
           {dups.length > 0 && (
-            <Card eyebrow="Check" title="Same medicine, twice" className="border-alarm/30">
+            <Card title="Same medicine, twice" className="border-alarm/30">
               <DuplicateList dups={dups} />
             </Card>
           )}
 
-          <Card eyebrow="Next visit" title={nextAppt ? nextAppt.doctor : "No visits booked"}>
+          <Card title={nextAppt ? `Next visit: ${nextAppt.doctor}` : "No visits booked"}>
             {nextAppt ? (
               <>
                 <p className="text-muted">{showWhen(nextAppt.starts_at)}{nextAppt.location ? ` · ${nextAppt.location}` : ""}</p>
                 {nextAppt.escort_id ? (
-                  <p className="mt-2 font-bold text-leaf">✓ {nameOf(nextAppt.escort_id)} is taking {profile.elder_name}</p>
+                  <p className="mt-2 flex items-center gap-2 font-bold text-leaf">
+                    <CheckIcon /> {nameOf(nextAppt.escort_id)} is taking {profile.elder_name}
+                  </p>
                 ) : (
                   <form action={claimEscortAction} className="mt-3">
                     <input type="hidden" name="id" value={nextAppt.id} />
                     <input type="hidden" name="from" value="/p" />
-                    <button className={primary}>I’ll take {profile.elder_name}</button>
+                    <Submit className={primary}>I’ll take {profile.elder_name}</Submit>
                   </form>
                 )}
-                <Link href={`/p/brief/${nextAppt.id}`} className={`${quiet} mt-2 -ml-3`}>Open the Doctor Brief →</Link>
+                <Link href={`/p/brief/${nextAppt.id}`} className={`${quiet} mt-2 -ml-3`}>
+                  Open the Doctor Brief <ArrowRightIcon className="h-4 w-4" />
+                </Link>
               </>
             ) : (
-              <Link href="/p/appointments" className={quiet}>Add an appointment →</Link>
+              <Link href="/p/appointments" className={`${quiet} -ml-3`}>
+                Add an appointment <ArrowRightIcon className="h-4 w-4" />
+              </Link>
             )}
           </Card>
         </div>

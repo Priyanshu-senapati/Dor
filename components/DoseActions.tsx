@@ -1,6 +1,8 @@
 import { markDose } from "@/app/actions";
 import { SKIP_REASONS } from "@/lib/symptoms";
 import { good, primary, secondary } from "./ui";
+import { CheckIcon } from "./icons";
+import { Submit } from "./Submit";
 
 interface Props {
   medId: string;
@@ -27,7 +29,9 @@ export function DoseActions({ medId, at, from, big = false }: Props) {
     <div className={`flex flex-wrap items-start gap-2 ${big ? "flex-col" : ""}`}>
       <form action={markDose} className={big ? "w-full" : ""}>
         <Hidden medId={medId} at={at} from={from} status="taken" />
-        <button className={`${good} ${size}`}>✓ {big ? "I took it" : "Taken"}</button>
+        <Submit className={`${good} ${size}`}>
+          <CheckIcon className={big ? "h-7 w-7" : "h-5 w-5"} /> {big ? "I took it" : "Taken"}
+        </Submit>
       </form>
       <details className={big ? "w-full" : ""}>
         <summary className={`${secondary} ${size} cursor-pointer list-none`}>{big ? "I chose to skip" : "Chose to skip"}</summary>
@@ -44,7 +48,7 @@ export function DoseActions({ medId, at, from, big = false }: Props) {
               ))}
             </div>
           </fieldset>
-          <button className={`${primary} ${big ? "w-full text-lg" : ""}`}>Save my choice</button>
+          <Submit className={`${primary} ${big ? "w-full text-lg" : ""}`}>Save my choice</Submit>
         </form>
       </details>
     </div>

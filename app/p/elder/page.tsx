@@ -5,7 +5,7 @@ import { classifySlot, slotKey, slotsForDay } from "@/lib/schedule";
 import { istDate, showTime } from "@/lib/time";
 import { DoseActions } from "@/components/DoseActions";
 import { ReadAloud } from "@/components/ReadAloud";
-import { Flash, type FlashParams } from "@/components/ui";
+import { Flash, Kite, type FlashParams } from "@/components/ui";
 import type { DoseLog, Med } from "@/lib/types";
 
 /** Big, one-thing-at-a-time screen for the elder: what’s next, and two buttons. */
@@ -35,7 +35,7 @@ export default async function ElderMode({ searchParams }: { searchParams: Promis
       <p className="text-center text-xl text-muted">
         {slots.length - remaining.length} of {slots.length} done today
       </p>
-      <div className="rounded-3xl border-2 border-ink bg-white p-8 text-center shadow-[6px_6px_0_#1f2a44]">
+      <div className="rounded-3xl border border-line bg-white p-8 text-center shadow-[0_2px_4px_rgba(31,42,68,0.06),0_24px_48px_-24px_rgba(31,42,68,0.35)]">
         {med && next ? (
           <>
             <p className="text-2xl text-muted">Next, at {showTime(next.at)}</p>
@@ -48,7 +48,7 @@ export default async function ElderMode({ searchParams }: { searchParams: Promis
           </>
         ) : (
           <>
-            <p className="text-6xl" aria-hidden="true">🪁</p>
+            <Kite className="mx-auto h-20 w-20" />
             <p className="font-display mt-4 text-4xl">All done for today</p>
             <p className="mt-2 text-2xl text-muted">Your family can see it. Rest easy.</p>
           </>

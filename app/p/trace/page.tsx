@@ -4,6 +4,7 @@ import { SYMPTOMS } from "@/lib/symptoms";
 import { istDate, showDay, showTime } from "@/lib/time";
 import { logSymptom } from "../../actions";
 import { Card, Flash, Pill, field, label, primary, type FlashParams } from "@/components/ui";
+import { Submit } from "@/components/Submit";
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
@@ -29,7 +30,7 @@ export default async function Trace({ searchParams }: { searchParams: Promise<Fl
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="space-y-6">
-          <Card eyebrow="What Dor noticed" title={flags.length ? "Worth raising with the doctor" : "No patterns yet"}>
+          <Card title={flags.length ? "Worth raising with the doctor" : "No patterns yet"}>
             {flags.length ? (
               <ul className="space-y-3">
                 {flags.map((f) => (
@@ -49,7 +50,7 @@ export default async function Trace({ searchParams }: { searchParams: Promise<Fl
             )}
           </Card>
 
-          <Card eyebrow="Timeline" title="Everything, in order">
+          <Card title="Everything, in order">
             {days.length === 0 && <p className="text-muted">Nothing logged yet.</p>}
             <ol className="space-y-5">
               {days.map((d) => (
@@ -75,7 +76,7 @@ export default async function Trace({ searchParams }: { searchParams: Promise<Fl
           </Card>
         </div>
 
-        <Card eyebrow="Log" title={`How is ${profile.elder_name} feeling?`}>
+        <Card title={`How is ${profile.elder_name} feeling?`}>
           <form action={logSymptom} className="space-y-3">
             <fieldset>
               <legend className={label}>Pick one</legend>
@@ -96,7 +97,7 @@ export default async function Trace({ searchParams }: { searchParams: Promise<Fl
               <label className={label} htmlFor="note">Note (optional)</label>
               <input id="note" name="note" maxLength={200} placeholder="e.g. after standing up" className={field} />
             </div>
-            <button className={`${primary} w-full`}>Log it</button>
+            <Submit className={`${primary} w-full`}>Log it</Submit>
           </form>
         </Card>
       </div>

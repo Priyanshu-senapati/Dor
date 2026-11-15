@@ -1,6 +1,7 @@
 "use client";
 
 import { secondary } from "./ui";
+import { SpeakerIcon } from "./icons";
 
 /** Reads the schedule out loud with the browser's own voice (no service, works offline). */
 export function ReadAloud({ text }: { text: string }) {
@@ -14,7 +15,7 @@ export function ReadAloud({ text }: { text: string }) {
   }
   return (
     <button type="button" onClick={speak} className={`${secondary} w-full text-lg`}>
-      🔊 Read it to me
+      <SpeakerIcon className="h-6 w-6" /> Read it to me
     </button>
   );
 }

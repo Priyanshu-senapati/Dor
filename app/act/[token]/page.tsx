@@ -7,6 +7,8 @@ import { showTime } from "@/lib/time";
 import { SKIP_REASONS } from "@/lib/symptoms";
 import { respondFromEmail } from "../../actions";
 import { Kite, good, primary } from "@/components/ui";
+import { CheckIcon } from "@/components/icons";
+import { Submit } from "@/components/Submit";
 import type { Alert, EmailAction, Med } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +64,7 @@ export default async function Act({ params }: { params: Promise<{ token: string 
         <p className="mt-2 text-muted">{alert.body}</p>
         <form action={respondFromEmail} className="mt-6">
           {hidden}
-          <button className={`${primary} w-full text-lg`}>{alert.kind === "escort" ? `I’ll take ${circle.profile.elder_name}` : "I’m on it"}</button>
+          <Submit className={`${primary} w-full text-lg`}>{alert.kind === "escort" ? `I’ll take ${circle.profile.elder_name}` : "I’m on it"}</Submit>
         </form>
         <p className="mt-3 text-sm text-muted">Everyone else in the circle will be told you’ve got it.</p>
       </Shell>
@@ -81,7 +83,9 @@ export default async function Act({ params }: { params: Promise<{ token: string 
       <form action={respondFromEmail} className="mt-6 space-y-3">
         {hidden}
         {action.a === "taken" ? (
-          <button className={`${good} w-full py-4 text-xl`}>✓ Yes, I took it</button>
+          <Submit className={`${good} w-full py-4 text-xl`}>
+            <CheckIcon className="h-6 w-6" /> Yes, I took it
+          </Submit>
         ) : (
           <>
             <fieldset>
@@ -95,7 +99,7 @@ export default async function Act({ params }: { params: Promise<{ token: string 
                 ))}
               </div>
             </fieldset>
-            <button className={`${primary} w-full py-4 text-xl`}>Save my choice</button>
+            <Submit className={`${primary} w-full py-4 text-xl`}>Save my choice</Submit>
           </>
         )}
       </form>

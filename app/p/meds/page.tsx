@@ -7,6 +7,7 @@ import { decideMed, refillMed, stopMed } from "../../actions";
 import { MedForm } from "@/components/MedForm";
 import { DuplicateList } from "@/components/DuplicateList";
 import { Card, Flash, Pill, field, primary, quiet, secondary, type FlashParams } from "@/components/ui";
+import { Submit } from "@/components/Submit";
 import type { DoseLog, Med } from "@/lib/types";
 
 export default async function Meds({ searchParams }: { searchParams: Promise<FlashParams> }) {
@@ -42,7 +43,7 @@ export default async function Meds({ searchParams }: { searchParams: Promise<Fla
       <h1 className="font-display text-4xl">{profile.elder_name}’s medicines</h1>
 
       {dups.length > 0 && (
-        <Card eyebrow="Check" title="The same ingredient is prescribed twice" className="border-alarm/30">
+        <Card title="The same ingredient is prescribed twice" className="border-alarm/30">
           <p className="mb-3 text-muted">
             Different brands, different doctors, same salt. Families are often the only ones who see the whole list.
           </p>
@@ -51,7 +52,7 @@ export default async function Meds({ searchParams }: { searchParams: Promise<Fla
       )}
 
       {pending.length > 0 && (
-        <Card eyebrow="Waiting for approval" title={canDecide ? "Suggested changes" : `Waiting for ${elder?.name}`}>
+        <Card title={canDecide ? "Suggested changes" : `Waiting for ${elder?.name}`}>
           <ul className="space-y-3">
             {pending.map((m) => (
               <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-paper p-4">
@@ -67,12 +68,12 @@ export default async function Meds({ searchParams }: { searchParams: Promise<Fla
                     <form action={decideMed}>
                       <input type="hidden" name="id" value={m.id} />
                       <input type="hidden" name="decision" value="approve" />
-                      <button className={primary}>Approve</button>
+                      <Submit className={primary}>Approve</Submit>
                     </form>
                     <form action={decideMed}>
                       <input type="hidden" name="id" value={m.id} />
                       <input type="hidden" name="decision" value="decline" />
-                      <button className={secondary}>Decline</button>
+                      <Submit className={secondary}>Decline</Submit>
                     </form>
                   </div>
                 )}
@@ -83,7 +84,7 @@ export default async function Meds({ searchParams }: { searchParams: Promise<Fla
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <Card eyebrow="In the schedule" title={active.length ? `${active.length} medicines` : "No medicines yet"}>
+        <Card title={active.length ? `${active.length} medicines in the schedule` : "No medicines yet"}>
           <ul className="space-y-4">
             {active.map((m) => {
               const pct = weekFor(m);
@@ -117,7 +118,7 @@ export default async function Meds({ searchParams }: { searchParams: Promise<Fla
                       <input type="hidden" name="id" value={m.id} />
                       <label className="sr-only" htmlFor={`refill-${m.id}`}>Tablets bought</label>
                       <input id={`refill-${m.id}`} name="count" type="number" min={1} max={1000} placeholder="+30" className={`${field} w-24 py-1.5`} />
-                      <button className={quiet}>Refilled</button>
+                      <Submit className={quiet}>Refilled</Submit>
                     </form>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -141,11 +142,11 @@ export default async function Meds({ searchParams }: { searchParams: Promise<Fla
         </Card>
 
         <div className="space-y-6">
-          <Card eyebrow="New prescription" title="Add a medicine">
+          <Card title="Add a medicine">
             <MedForm others={current} submitLabel={needsApproval ? `Suggest to ${elder?.name}` : "Add to schedule"} needsApproval={needsApproval} elderName={profile.elder_name} />
           </Card>
           {past.length > 0 && (
-            <Card eyebrow="History" title="Stopped and declined">
+            <Card title="Stopped and declined">
               <ul className="space-y-1 text-muted">
                 {past.map((m) => (
                   <li key={m.id}>
