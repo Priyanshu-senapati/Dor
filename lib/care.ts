@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { sql } from "./db";
 import { doseRef, notifyHandled, notifyOwner } from "./notify";
 import { appUrl, sendMail } from "./mail";
@@ -250,15 +251,22 @@ export async function setAway(profile: Profile, chain: Member[], by: Member, cov
     returning *`;
   moved.push(...visits.map((v) => `taking ${profile.elder_name} to ${v.doctor} (${showWhen(v.starts_at)})`));
 
-  const briefing = await briefCover(profile, by, cover, range, moved);
-  await sql`update away set briefing = ${briefing.text}, briefing_ai = ${briefing.ai} where id = ${row.id}`;
   await logEvent(profile.id, by.id, "handoff", `${by.name} is away ${range}. ${cover.name} is covering.`);
-  await sendMail(cover.email, `You’re covering for ${by.name}, ${range}`, [
-    `${by.name} is away ${range}. While they’re away, Dor skips them and their alerts come to you.`,
-    briefing.text,
-    briefing.ai ? "This briefing was written by Google Gemini from Dor’s records. It is not medical advice." : "",
-  ].filter(Boolean), [{ label: "Open Dor", href: `${appUrl()}/p` }]);
-  return `Done. ${cover.name} is covering ${range}${moved.length ? ` and now owns ${moved.length} item${moved.length > 1 ? "s" : ""}` : ""}. A briefing went to ${cover.name}.`;
+  // Writing the briefing can take a while (Gemini), so it happens after the handoff is confirmed.
+  after(async () => {
+    try {
+      const briefing = await briefCover(profile, by, cover, range, moved);
+      await sql`update away set briefing = ${briefing.text}, briefing_ai = ${briefing.ai} where id = ${row.id}`;
+      await sendMail(cover.email, `You’re covering for ${by.name}, ${range}`, [
+        `${by.name} is away ${range}. While they’re away, Dor skips them and their alerts come to you.`,
+        briefing.text,
+        briefing.ai ? "This briefing was written by Google Gemini from Dor’s records. It is not medical advice." : "",
+      ].filter(Boolean), [{ label: "Open Dor", href: `${appUrl()}/p` }]);
+    } catch (err) {
+      console.error("[handoff] briefing failed:", err instanceof Error ? err.message : "unknown error");
+    }
+  });
+  return `Done. ${cover.name} is covering ${range}${moved.length ? ` and now owns ${moved.length} item${moved.length > 1 ? "s" : ""}` : ""}. A briefing is on its way to ${cover.name}.`;
 }
 
 export async function endAway(profile: Profile, awayId: string, by: Member): Promise<string> {

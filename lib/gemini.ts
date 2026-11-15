@@ -52,8 +52,8 @@ export interface GeminiModel {
 
 const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_TIMEOUT_MS = 8000;
-// Generation can take a while on "thinking" models; a handoff is a one-off action, so wait longer for it.
-const GENERATE_TIMEOUT_MS = 25_000;
+// Runs after the response is sent (see setAway), so it can afford to wait.
+const GENERATE_TIMEOUT_MS = 50_000;
 
 /** A plain-text Flash model from the key's model list ("models/gemini-3-flash" → "gemini-3-flash"). */
 export function chooseFlashModel(models: GeminiModel[]): string | null {
@@ -68,14 +68,15 @@ async function listModels(key: string): Promise<GeminiModel[]> {
   return res.ok ? (((await res.json()) as { models?: GeminiModel[] }).models ?? []) : [];
 }
 
-function generate(key: string, model: string, prompt: string): Promise<Response> {
+/** `lean` asks the model to skip extended thinking: a short restatement doesn't need it and it is much faster. */
+function generate(key: string, model: string, prompt: string, lean: boolean): Promise<Response> {
   return fetch(`${GEMINI_API}/models/${model}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       // Generous budget: on thinking models the reasoning counts against it, and the prompt caps the answer at ~110 words.
-      generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
+      generationConfig: { temperature: 0.2, maxOutputTokens: 2048, ...(lean ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
     }),
     signal: AbortSignal.timeout(GENERATE_TIMEOUT_MS),
   });
@@ -91,21 +92,23 @@ export async function handoffBriefing(i: HandoffInput): Promise<{ text: string; 
   let model = workingModel ?? process.env.GEMINI_MODEL ?? "gemini-flash-latest";
   try {
     const prompt = handoffPrompt(i);
-    let res = await generate(key, model, prompt);
+    let res = await generate(key, model, prompt, true);
     if (res.status === 404) {
       const found = chooseFlashModel(await listModels(key));
       if (found) {
         model = found;
-        res = await generate(key, model, prompt);
+        res = await generate(key, model, prompt, true);
       }
     }
+    // Some models refuse a zero thinking budget; ask again with defaults.
+    if (res.status === 400) res = await generate(key, model, prompt, false);
     if (!res.ok) throw new Error(`Gemini returned ${res.status} for ${model}`);
     workingModel = model;
     const data = (await res.json()) as GeminiResponse;
     const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim();
     return text ? { text, ai: true } : { text: handoffFallback(i), ai: false };
   } catch (err) {
-    console.error("[gemini] handoff briefing failed:", err instanceof Error ? err.message : "unknown error");
+    console.error(`[gemini] handoff briefing failed (${model}):`, err instanceof Error ? err.message : "unknown error");
     return { text: handoffFallback(i), ai: false };
   }
 }
