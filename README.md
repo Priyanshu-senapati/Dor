@@ -4,8 +4,10 @@
 
 <h1 align="center">Dor · डोर</h1>
 
+<h3 align="center">Every care event has an owner.</h3>
+
 <p align="center">
-  <strong>Amma flies her own kite. Dor makes sure someone is always holding the string.</strong>
+  <em>Amma flies her own kite. Dor makes sure someone is always holding the string.</em>
 </p>
 
 <p align="center">
@@ -38,6 +40,7 @@ Medication reminder apps already exist. Family dashboards already exist. What st
 | **Nobody owns the alert.** A missed-dose message reaches four siblings and each assumes someone else called Amma. | **Hold:** every alert has exactly one owner at a time, and it moves down the family chain until someone says *“I’m on it”*. |
 | **Nobody sees the whole prescription list.** Three doctors, three prescriptions: Telma-AM already contains amlodipine, so adding Amlong doubles it. | **Check:** Dor knows the active ingredient (salt) behind common Indian brands and flags the same salt arriving twice, naming both doctors. |
 | **Nobody connects how she feels to what changed.** “She’s been dizzy” reaches the doctor without “since the dose went up”. | **Trace:** symptoms are lined up against every medicine change, then printed on a one-page **Doctor Brief**. |
+| **One person quietly becomes the full-time caregiver.** The daughter nearby handles everything; nobody notices until she burns out. | **Care load:** Dor shows who has carried each care event this month, and lets the family hand over the string when someone travels. |
 | **Care turns into surveillance.** The elder becomes a red “MISSED” on someone else’s phone. | **The elder stays in charge:** they are asked first, approve every change, and can choose to skip with a reason. |
 
 > **Try it in 30 seconds.** Open the [live app](https://dor-sandy-two.vercel.app/#demo) and press **Enter as Riya (caretaker)** to see the family view, or **Enter as Kamala (elder mode)** to see what the elder sees. The demo is Kamala Devi, 74: three doctors, a daughter (Riya) who is her caretaker, and a son (Arjun) in Pune.
@@ -65,7 +68,41 @@ The **Today** page opens on *Needs someone*: every open alert, who it is with ri
   <img src="docs/images/chain.jpg" alt="The chain: Kamala Devi first, then Riya, then Arjun, with arrows to reorder" width="920" />
 </p>
 
-The **Circle** page shows the chain itself: the elder is always link 1, and the family can reorder everyone else. A history of every alert, who took it and how it ended sits beside it.
+The **Circle** page shows the chain itself: the elder is always link 1, and the family can reorder everyone else.
+
+#### Every care event has a life: open → claimed → what happened → resolved
+
+<p align="center">
+  <img src="docs/images/what-happened.jpg" alt="A claimed missed dose asking What happened?, with choices and the trail: raised, asked Kamala Devi first, Riya: I'm on it" width="920" />
+</p>
+
+Claiming an alert isn’t the end. Whoever said *“I’m on it”* is asked **what happened**, in one tap:
+
+| Choice | What Dor does |
+|---|---|
+| **Kamala took it** | Marks the dose taken and closes the event. |
+| **Taking it a little later** | Keeps it with you until the dose is marked. |
+| **Feels unwell, skipping it** | Records the skip with the reason, which feeds Trace. |
+| **The medicine has run out** | Records why, sets the stock to zero, and **opens a refill task** with an owner. A memory problem and a supply problem are different problems. |
+| **I couldn’t reach her** | **Passes the event to the next person straight away**, with your note, instead of waiting 15 minutes. |
+
+<p align="center">
+  <img src="docs/images/ran-out-refill.jpg" alt="After choosing The medicine has run out: a new refill task, Telma-AM has run out, with Riya and passing to Arjun if nobody answers" width="920" />
+</p>
+
+Every step is written to the event’s **trail**: raised, asked the elder first, passed on, claimed, the outcome, resolved. The Circle page keeps the full history of every care event, start to finish.
+
+#### Care gaps: fix failures before they happen
+
+The Today page also lists what is coming up **with nobody responsible**: a doctor visit in the next 7 days with nobody taking her, a strip running out that nobody has said they’ll buy, a medicine change waiting on the elder for over a day, or a chain with only one person after the elder. Each gap has a one-tap fix (*I’ll take her*, *I’ll buy it*, *Invite a backup*).
+
+#### Care load: who is carrying it
+
+The Circle page counts each family member’s care events over 30 days (alerts claimed, visits taken, refills bought) and shows them as bars. When one person carries 60% or more, Dor says so plainly (*“Riya has handled 81% of care events in the last 30 days”*) and offers one tap to let someone else take the first call.
+
+#### Handoff: hand over the string when you travel
+
+*“I’m away 15–17 Nov, Arjun covers.”* While someone is away, Dor skips them in the chain. Their open events and any visits they were taking move to their cover, with a trail entry on each, and the cover gets one email listing everything that is now theirs. *I’m back* restores the chain.
 
 ### 2. Emails you can act on
 
@@ -85,6 +122,8 @@ Every reminder is a real email with one-tap buttons. Nobody needs to open the ap
     <td align="center"><sub><b>Visit reminders</b><br/>24 hours and 2 hours before.</sub></td>
   </tr>
 </table>
+
+After *“I’m on it”*, the same page goes straight on to **“What happened?”**, so the email carries the whole care workflow. Most events never need the app opened.
 
 Email buttons open a short confirm page, and only the button on that page acts. Mail scanners that pre-open links can’t press anything by accident, and links expire after 24 hours.
 
@@ -107,6 +146,8 @@ The Medicines page keeps a standing warning for every duplicate, with each docto
 <p align="center">
   <img src="docs/images/trace.jpg" alt="Trace: swollen feet started 6 days after, and dizziness 2 days after, Telma 40 mg became Telma-AM 40/5 mg" width="920" />
 </p>
+
+**Why doses were missed.** Trace also splits the last 30 days of missed doses by reason: never marked, felt dizzy, ran out… and says what that means (*“Most misses were supply problems, not memory. Watch the refills.”*). The family learns whether they have a reminder problem or a refills problem.
 
 Anyone in the circle can log how the elder feels in one tap (dizziness, swollen feet, nausea…). Reasons given for skipping a dose, like *“felt dizzy”*, are logged too. **Trace** lines all of it up against every medicine change and points out symptoms that first appeared within 7 days of a change. Dor doesn’t diagnose; it shows the timing so the doctor can judge.
 
@@ -158,6 +199,10 @@ flowchart LR
     A -->|15 min, no answer| B["Passes to Riya"]
     B -->|15 min, no answer| C["Passes to Arjun"]
     B -->|taps I'm on it| D["Everyone told:<br/>Riya is handling it"]
+    D --> W{"What happened?"}
+    W -->|took it| X[Resolved]
+    W -->|ran out| Y["Refill task,<br/>with an owner"]
+    W -->|couldn't reach her| C
     K -->|under 3 days of pills| E["Refill alert to the first family member"]
     K -->|visit within 48 h, no escort| F["Who's taking Amma?"]
 ```
