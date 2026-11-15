@@ -130,6 +130,16 @@ async function tickProfile(profile: Profile, now: Date): Promise<number> {
   return sent;
 }
 
+const TICK_EVERY_MS = 5 * 60_000;
+
+/**
+ * Backup for the GitHub timer (which can run late or pause): when someone opens the app,
+ * run this circle's check, at most once per 5-minute window.
+ */
+export async function runTickIfDue(profileId: string, now: Date = new Date()): Promise<void> {
+  if (await once(`tick:${profileId}:${Math.floor(now.getTime() / TICK_EVERY_MS)}`)) await runTick(now, profileId);
+}
+
 /** One pass of reminders, missed-dose alerts, refills, escorts and escalation. Safe to run concurrently. */
 export async function runTick(now: Date = new Date(), profileId?: string): Promise<{ profiles: number; emails: number }> {
   const profiles = profileId

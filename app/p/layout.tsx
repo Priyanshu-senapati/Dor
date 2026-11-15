@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { requireCircle } from "@/lib/session";
+import { runTickIfDue } from "@/lib/tick";
 import { Kite } from "@/components/ui";
 import { NavLinks } from "@/components/Nav";
 import { leaveCircle } from "../actions";
@@ -8,6 +10,14 @@ export const dynamic = "force-dynamic";
 
 export default async function CircleLayout({ children }: { children: React.ReactNode }) {
   const { profile, member } = await requireCircle();
+  // After the page is sent: keep reminders flowing even if the scheduled timer is late.
+  after(async () => {
+    try {
+      await runTickIfDue(profile.id);
+    } catch (err) {
+      console.error("[tick] page-visit check failed", err);
+    }
+  });
   return (
     <div className="min-h-screen">
       <header className="no-print sticky top-0 z-10 border-b border-line bg-paper/90 backdrop-blur">

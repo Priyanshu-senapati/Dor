@@ -94,7 +94,7 @@ const schedule = [
 ];
 
 const logs = [];
-for (let d = -14; d <= 0; d++) {
+for (let d = -30; d <= 0; d++) { // 30 days, so the Doctor Brief's 30-day adherence is real
   for (const [id, times, from, to] of schedule) {
     if (d < from || (to !== null && d > to)) continue;
     for (const t of times) {

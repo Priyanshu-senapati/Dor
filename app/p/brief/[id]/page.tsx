@@ -42,12 +42,12 @@ export default async function DoctorBrief({ params }: { params: Promise<{ id: st
     <article className="mx-auto max-w-3xl space-y-6 bg-white p-6 text-[15px] print:p-0 md:p-10">
       <header className="flex items-start justify-between gap-4 border-b-2 border-ink pb-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-kite-deep">Doctor Brief · prepared by the family on Dor</p>
-          <h1 className="font-display text-3xl">{profile.elder_name}</h1>
+          <h1 className="font-display text-3xl">Doctor Brief: {profile.elder_name}</h1>
           <p className="text-muted">
             For {appt.doctor}{appt.specialty ? ` (${appt.specialty})` : ""} · {showWhen(appt.starts_at)}
             {escort ? ` · accompanied by ${escort.name}` : ""}
           </p>
+          <p className="text-sm text-muted">Prepared by the family on Dor</p>
         </div>
         <PrintButton />
       </header>
