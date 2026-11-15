@@ -15,4 +15,5 @@ jobs:
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           DOR_URL: ${{ secrets.DOR_URL }}
-        run: curl -fsS --max-time 60 -H "Authorization: Bearer $CRON_SECRET" "$DOR_URL/api/cron"
+        run: |
+          curl -fsS --max-time 60 -H "Authorization: Bearer $CRON_SECRET" "$DOR_URL/api/cron"
