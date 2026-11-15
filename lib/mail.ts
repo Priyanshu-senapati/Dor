@@ -1,4 +1,17 @@
 import nodemailer from "nodemailer";
+import { sql } from "./db";
+import { istDate } from "./time";
+
+const MAX_PER_RECIPIENT_DAY = 40;
+const MAX_PER_DAY = 400; // Gmail allows ~500/day; stay under it so reminders never get the account suspended
+
+async function underQuota(to: string): Promise<boolean> {
+  const day = istDate(new Date());
+  const bump = async (rcpt: string) =>
+    (await sql<{ n: number }>`insert into mail_quota (day, rcpt, n) values (${day}, ${rcpt}, 1)
+      on conflict (day, rcpt) do update set n = mail_quota.n + 1 returning n`)[0].n;
+  return (await bump(to.toLowerCase())) <= MAX_PER_RECIPIENT_DAY && (await bump("*")) <= MAX_PER_DAY;
+}
 
 export function appUrl(): string {
   if (process.env.APP_URL) return process.env.APP_URL;
@@ -45,6 +58,10 @@ export async function sendMail(to: string, subject: string, lines: string[], but
   }
   transport ??= nodemailer.createTransport({ service: "gmail", auth: { user, pass } });
   try {
+    if (!(await underQuota(to))) {
+      console.warn(`[mail] daily limit reached; skipped "${subject}"`);
+      return false;
+    }
     await transport.sendMail({
       from: `Dor <${user}>`,
       to,

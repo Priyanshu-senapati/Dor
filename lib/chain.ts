@@ -11,6 +11,11 @@ export function orderChain<M extends ChainMember>(members: M[]): M[] {
   return [...members].sort((a, b) => rank(a) - rank(b) || a.chain_order - b.chain_order);
 }
 
+/** Errands (refills, escorts) start with the first non-elder link, or the elder if they're alone. */
+export function firstHelper(chain: { role: string }[]): number {
+  return Math.max(0, chain.findIndex((m) => m.role !== "elder"));
+}
+
 /** The next link to hand an unanswered alert to, or null if it should stay where it is. */
 export function nextLevel(level: number, lastNotifiedAt: Date, now: Date, chainLength: number): number | null {
   if (level >= chainLength - 1) return null;

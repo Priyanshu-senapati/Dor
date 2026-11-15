@@ -19,7 +19,13 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const MAX_MEMBERS = 12;
+const MAX_DEMO_MEMBERS = 40;
+const MAX_TIMES_PER_MED = 6;
+const MAX_MEDS = 30;
+const MAX_UPCOMING_APPTS = 20;
 const LOCK_AFTER = 5;
+const DEMO_CODE = "DOR-DEMO";
+const NO_MATCH = "That code and passcode don't match, or the circle is paused for 10 minutes after too many tries.";
 
 const text = (fd: FormData, key: string, max = 120): string => String(fd.get(key) ?? "").trim().slice(0, max);
 const isRole = (r: string): r is Role => r === "elder" || r === "caretaker" || r === "family";
@@ -75,18 +81,19 @@ export async function joinProfile(fd: FormData): Promise<void> {
   if (!name || !EMAIL_RE.test(email)) back("/#join", "Please enter your name and a valid email.");
   if (!isRole(role)) back("/#join", "Please choose who you are.");
 
-  const [profile] = await sql<{ id: string; passcode_hash: string; locked_until: Date | null; elder_name: string }>`
-    select id, passcode_hash, locked_until, elder_name from profiles where code = ${code}`;
-  if (!profile) back("/#join", "No care circle has that code.");
-  if (profile.locked_until && profile.locked_until > new Date()) back("/#join", "Too many wrong passcodes. Try again in 10 minutes.");
-  if (!verifyPasscode(passcode, profile.passcode_hash)) {
-    const [r] = await sql<{ locked: boolean }>`update profiles set
-        failed_attempts = case when failed_attempts + 1 >= ${LOCK_AFTER} then 0 else failed_attempts + 1 end,
-        locked_until = case when failed_attempts + 1 >= ${LOCK_AFTER} then now() + interval '10 minutes' else locked_until end
-      where id = ${profile.id} returning coalesce(locked_until > now(), false) as locked`;
-    back("/#join", r?.locked ? "Too many wrong passcodes. Locked for 10 minutes." : "Wrong passcode.");
-  }
-  await sql`update profiles set failed_attempts = 0 where id = ${profile.id}`;
+  const demo = code === DEMO_CODE;
+  type JoinRow = { id: string; passcode_hash: string; elder_name: string };
+  // Count the attempt before the slow hash check, so parallel guesses can't slip past the lockout.
+  // The 5th try locks the circle for 10 minutes; the demo passcode is public, so it never locks.
+  const [profile] = demo
+    ? await sql<JoinRow>`select id, passcode_hash, elder_name from profiles where code = ${code}`
+    : await sql<JoinRow>`update profiles set
+          failed_attempts = case when failed_attempts >= ${LOCK_AFTER} then 1 else failed_attempts + 1 end,
+          locked_until = case when failed_attempts + 1 = ${LOCK_AFTER} then now() + interval '10 minutes' else locked_until end
+        where code = ${code} and coalesce(locked_until, 'epoch'::timestamptz) < now()
+        returning id, passcode_hash, elder_name`;
+  if (!profile || !verifyPasscode(passcode, profile.passcode_hash)) back("/#join", NO_MATCH);
+  if (!demo) await sql`update profiles set failed_attempts = 0, locked_until = null where id = ${profile.id}`;
 
   const [existing] = await sql<{ id: string }>`select id from members where profile_id = ${profile.id} and email = ${email}`;
   let memberId = existing?.id;
@@ -94,12 +101,19 @@ export async function joinProfile(fd: FormData): Promise<void> {
     const [stats] = await sql<{ count: number; max: number; elders: number }>`select count(*)::int as count,
       coalesce(max(chain_order), 0)::int as max, (count(*) filter (where role = 'elder'))::int as elders
       from members where profile_id = ${profile.id}`;
-    if (stats.count >= MAX_MEMBERS) back("/#join", "This circle is full.");
+    if (stats.count >= (demo ? MAX_DEMO_MEMBERS : MAX_MEMBERS)) back("/#join", "This circle is full.");
     if (role === "elder" && stats.elders > 0) back("/#join", `${profile.elder_name} is already in this circle. Join as family or caretaker.`);
     const [m] = await sql<{ id: string }>`insert into members (profile_id, name, email, role, chain_order)
       values (${profile.id}, ${name}, ${email}, ${role}, ${role === "elder" ? 0 : stats.max + 1}) returning id`;
     memberId = m.id;
     await logEvent(profile.id, memberId, "circle", `${name} joined the circle as ${role}`);
+  } else if (!demo) {
+    // Signing in as an existing email is allowed by the shared-passcode model, so make it visible.
+    await logEvent(profile.id, memberId, "circle", "Signed in on a new device");
+    await sendMail(email, `New sign-in to ${profile.elder_name}'s circle on Dor`, [
+      "Someone just signed in to Dor with your email and the circle passcode.",
+      "If this wasn't you, tell your family so they can keep an eye on changes.",
+    ]);
   }
   await setSession(profile.id, memberId);
   redirect("/p");
@@ -129,6 +143,10 @@ export async function saveMed(fd: FormData): Promise<void> {
   if (!brand) back("/p/meds", "Enter the medicine's name as written on the strip.");
   const times = [...new Set(fd.getAll("time").map(String).filter((t) => TIME_RE.test(t)))].sort();
   if (!times.length) back("/p/meds", "Pick at least one time of day.");
+  if (times.length > MAX_TIMES_PER_MED) back("/p/meds", `At most ${MAX_TIMES_PER_MED} times a day per medicine.`);
+  const [{ n }] = await sql<{ n: number }>`select count(*)::int as n from medications
+    where profile_id = ${profile.id} and status in ('active', 'pending')`;
+  if (n >= MAX_MEDS) back("/p/meds", `A circle can track up to ${MAX_MEDS} medicines. Stop one first.`);
 
   const known = resolveSalts(brand);
   const salts = known.length ? known : text(fd, "salt", 80).toLowerCase().split(/\s*[,+]\s*/).filter(Boolean);
@@ -167,8 +185,9 @@ export async function saveMed(fd: FormData): Promise<void> {
     refresh();
     back("/p/meds", `Sent to ${elder.name} to approve. Nothing changes until they say yes.`, "ok");
   }
-  await activateMed(profile, med, member);
+  const added = await activateMed(profile, med, member);
   refresh();
+  if (!added) back("/p/meds", "That medicine changed in the meantime. Refresh and try again.");
   back("/p/meds", `${medName(med)} is in the schedule.`, "ok");
 }
 
@@ -181,8 +200,9 @@ export async function decideMed(fd: FormData): Promise<void> {
     : [];
   if (!med) back("/p/meds", "That suggestion was already handled.");
   if (text(fd, "decision") === "approve") {
-    await activateMed(profile, med, member);
+    const added = await activateMed(profile, med, member);
     refresh();
+    if (!added) back(returnTo(fd, "/p/meds"), "That medicine was already changed by another suggestion, so this one was set aside.");
     back(returnTo(fd, "/p/meds"), `Approved. ${medName(med)} is in the schedule.`, "ok");
   }
   await sql`update medications set status = 'declined' where id = ${med.id}`;
@@ -276,6 +296,9 @@ export async function addAppointment(fd: FormData): Promise<void> {
   const time = text(fd, "time", 5);
   if (!doctor || !DATE_RE.test(date) || !TIME_RE.test(time)) back("/p/appointments", "Enter the doctor, date and time.");
   const startsAt = new Date(`${date}T${time}:00+05:30`);
+  const [{ n }] = await sql<{ n: number }>`select count(*)::int as n from appointments
+    where profile_id = ${profile.id} and starts_at > now()`;
+  if (n >= MAX_UPCOMING_APPTS) back("/p/appointments", `Up to ${MAX_UPCOMING_APPTS} upcoming visits can be tracked.`);
   await sql`insert into appointments (profile_id, doctor, specialty, location, starts_at, purpose, questions)
     values (${profile.id}, ${doctor}, ${text(fd, "specialty", 60)}, ${text(fd, "location", 120)}, ${startsAt},
       ${text(fd, "purpose", 160)}, ${text(fd, "questions", 1000)})`;

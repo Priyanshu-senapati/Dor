@@ -1,5 +1,13 @@
 ﻿import { describe, it, expect } from "vitest";
-import { orderChain, nextLevel } from "../lib/chain";
+import { orderChain, nextLevel, firstHelper } from "../lib/chain";
+
+describe("firstHelper", () => {
+  it("is the first link after the elder", () =>
+    expect(firstHelper([{ role: "elder" }, { role: "caretaker" }, { role: "family" }])).toBe(1));
+  it("is the first link when there is no elder in the circle", () =>
+    expect(firstHelper([{ role: "family" }, { role: "caretaker" }])).toBe(0));
+  it("falls back to the elder when they are alone", () => expect(firstHelper([{ role: "elder" }])).toBe(0));
+});
 
 describe("orderChain", () => {
   it("puts the elder first, then members by chain order", () => {

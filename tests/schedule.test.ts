@@ -1,5 +1,15 @@
 ﻿import { describe, it, expect } from "vitest";
-import { slotsForDay, classifySlot, adherence, slotKey } from "../lib/schedule";
+import { slotsForDay, classifySlot, adherence, slotKey, visitHeading } from "../lib/schedule";
+
+describe("visitHeading", () => {
+  const now = new Date("2026-11-15T10:00:00+05:30");
+  it("says in 2 hours when it is that close", () =>
+    expect(visitHeading(new Date("2026-11-15T11:30:00+05:30"), now)).toBe("In 2 hours"));
+  it("says later today for a visit this evening", () =>
+    expect(visitHeading(new Date("2026-11-15T18:00:00+05:30"), now)).toBe("Later today"));
+  it("says tomorrow for a visit on the next IST date", () =>
+    expect(visitHeading(new Date("2026-11-16T09:00:00+05:30"), now)).toBe("Tomorrow"));
+});
 import { istDate, doseInstant } from "../lib/time";
 
 describe("time", () => {

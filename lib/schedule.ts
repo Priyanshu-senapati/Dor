@@ -1,4 +1,10 @@
-﻿import { doseInstant } from "./time";
+﻿import { doseInstant, istDate } from "./time";
+
+/** Heading for an appointment reminder email. */
+export function visitHeading(startsAt: Date, now: Date): "In 2 hours" | "Later today" | "Tomorrow" {
+  if (startsAt.getTime() - now.getTime() <= 2 * 3_600_000) return "In 2 hours";
+  return istDate(startsAt) === istDate(now) ? "Later today" : "Tomorrow";
+}
 
 export const REMIND_BEFORE_MIN = 15;
 export const GRACE_MIN = 30;

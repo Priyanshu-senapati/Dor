@@ -26,17 +26,24 @@ export async function recordDose(
   const [med] = await sql<Med>`select * from medications where id = ${medId} and profile_id = ${profile.id}`;
   if (!med) return "That dose couldn't be found.";
   const at = new Date(atMs);
-  const [prev] = await sql<{ status: string }>`select status from dose_logs where med_id = ${med.id} and at = ${at}`;
-
-  await sql`insert into dose_logs (med_id, profile_id, at, status, reason, marked_by)
-    values (${med.id}, ${profile.id}, ${at}, ${status}, ${reason}, ${by.id})
-    on conflict (med_id, at) do update set status = excluded.status, reason = excluded.reason,
-      marked_by = excluded.marked_by, marked_at = now()`;
-
-  const wasTaken = prev?.status === "taken";
-  if (status === "taken" && !wasTaken) {
+  // One statement: lock the old row, write the new status, report whether this call changed it.
+  // Two people tapping "Taken" at once then move the tablet count only once.
+  const [r] = await sql<{ prev: string | null; changed: number }>`
+    with old as (select status from dose_logs where med_id = ${med.id} and at = ${at} for update),
+    up as (
+      insert into dose_logs (med_id, profile_id, at, status, reason, marked_by)
+      values (${med.id}, ${profile.id}, ${at}, ${status}, ${reason}, ${by.id})
+      on conflict (med_id, at) do update set status = excluded.status, reason = excluded.reason,
+        marked_by = excluded.marked_by, marked_at = now()
+      where dose_logs.status is distinct from excluded.status or dose_logs.reason is distinct from excluded.reason
+      returning 1
+    )
+    select (select status from old) as prev, (select count(*) from up)::int as changed`;
+  const changed = (r?.changed ?? 0) > 0;
+  const wasTaken = r?.prev === "taken";
+  if (changed && status === "taken" && !wasTaken) {
     await sql`update medications set pills_left = greatest(pills_left - pills_per_dose, 0) where id = ${med.id} and pills_left is not null`;
-  } else if (status !== "taken" && wasTaken) {
+  } else if (changed && status !== "taken" && wasTaken) {
     await sql`update medications set pills_left = pills_left + pills_per_dose where id = ${med.id} and pills_left is not null`;
   }
 
@@ -46,7 +53,7 @@ export async function recordDose(
       ? `${profile.elder_name} took ${medName(med)} (${showTime(at)})${by_}`
       : `${profile.elder_name} chose to skip ${medName(med)} (${showTime(at)})${reason ? `: ${reason}` : ""}${by_}`;
 
-  if (status === "skipped") {
+  if (status === "skipped" && changed) {
     await logEvent(profile.id, by.id, "skip", label);
     const symptom = SKIP_REASONS.find((r) => r.label === reason)?.symptom;
     if (symptom) {
@@ -95,20 +102,27 @@ export async function resolveAlert(profile: Profile, alertId: string, by: Member
     where id = ${alertId} and profile_id = ${profile.id} and status <> 'resolved'`;
 }
 
-/** Puts an approved (or elder-made) medicine into the schedule, retiring the one it replaces. */
-export async function activateMed(profile: Profile, med: Med, by: Member): Promise<void> {
+/**
+ * Puts an approved (or elder-made) medicine into the schedule, retiring the one it replaces.
+ * Returns false (and declines it) if the medicine it was meant to change has already changed.
+ */
+export async function activateMed(profile: Profile, med: Med, by: Member): Promise<boolean> {
   let kind = "med_start";
   let label = `Started ${medName(med)}`;
   if (med.replaces_id) {
     const [old] = await sql<Med>`update medications set status = 'stopped', end_date = ${istDate(new Date())}
-      where id = ${med.replaces_id} and profile_id = ${profile.id} returning *`;
-    if (old) {
-      kind = "med_change";
-      label = `${medName(old)} → ${medName(med)}`;
+      where id = ${med.replaces_id} and profile_id = ${profile.id} and status = 'active' returning *`;
+    if (!old) {
+      await sql`update medications set status = 'declined' where id = ${med.id}`;
+      return false;
     }
+    kind = "med_change";
+    label = `${medName(old)} → ${medName(med)}`;
   }
-  await sql`update medications set status = 'active' where id = ${med.id}`;
+  // The schedule starts now, so doses earlier today aren't counted as missed.
+  await sql`update medications set status = 'active', created_at = now() where id = ${med.id}`;
   await logEvent(profile.id, by.id, kind, label);
+  return true;
 }
 
 export { medName };

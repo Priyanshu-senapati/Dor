@@ -41,8 +41,9 @@ export async function loadCircle(profileId: string, memberId: string): Promise<C
 /** The signed-in member and their care circle; sends anyone else back to the start page. */
 export async function requireCircle(): Promise<Circle> {
   const token = (await cookies()).get(COOKIE)?.value;
-  const session = token ? verifyToken<{ p: string; m: string }>(token) : null;
-  const circle = session ? await loadCircle(session.p, session.m) : null;
+  const session = token ? verifyToken<{ p: string; m: string; a?: string }>(token) : null;
+  // Email action tokens share the signing key; one pasted in as a cookie must not become a session.
+  const circle = session && !session.a ? await loadCircle(session.p, session.m) : null;
   if (!circle) redirect("/?error=" + encodeURIComponent("Please join your care circle first."));
   return circle;
 }

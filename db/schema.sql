@@ -82,6 +82,14 @@ create table if not exists alerts (
   unique (profile_id, ref_key)
 );
 
+-- Daily email counter per recipient and overall ('*'), so the app can't be turned into a spam cannon.
+create table if not exists mail_quota (
+  day text not null,
+  rcpt text not null,
+  n int not null,
+  primary key (day, rcpt)
+);
+
 create table if not exists sent_keys (
   key text primary key,
   sent_at timestamptz not null default now()

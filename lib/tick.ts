@@ -1,6 +1,6 @@
 import { sql } from "./db";
-import { orderChain, nextLevel } from "./chain";
-import { slotsForDay, classifySlot, slotKey } from "./schedule";
+import { orderChain, nextLevel, firstHelper } from "./chain";
+import { slotsForDay, classifySlot, slotKey, visitHeading } from "./schedule";
 import { addDays, istDate, showTime, showWhen } from "./time";
 import { actionLink, notifyOwner } from "./notify";
 import { sendMail } from "./mail";
@@ -24,13 +24,20 @@ async function raise(
   title: string,
   body: string,
   level: number,
+  dose?: { medId: string; at: Date },
 ): Promise<number> {
   const lvl = Math.min(level, chain.length - 1);
   const owner = chain[lvl];
   if (!owner) return 0;
-  const [alert] = await sql<Alert>`insert into alerts (profile_id, kind, ref_key, title, body, level, owner_id)
-    values (${profile.id}, ${kind}, ${refKey}, ${title}, ${body}, ${lvl}, ${owner.id})
-    on conflict (profile_id, ref_key) do nothing returning *`;
+  // For doses, re-check inside the insert: someone may have tapped "Taken" since this tick read the logs.
+  const [alert] = dose
+    ? await sql<Alert>`insert into alerts (profile_id, kind, ref_key, title, body, level, owner_id)
+        select ${profile.id}, ${kind}, ${refKey}, ${title}, ${body}, ${lvl}, ${owner.id}
+        where not exists (select 1 from dose_logs where med_id = ${dose.medId} and at = ${dose.at} and status in ('taken', 'skipped'))
+        on conflict (profile_id, ref_key) do nothing returning *`
+    : await sql<Alert>`insert into alerts (profile_id, kind, ref_key, title, body, level, owner_id)
+        values (${profile.id}, ${kind}, ${refKey}, ${title}, ${body}, ${lvl}, ${owner.id})
+        on conflict (profile_id, ref_key) do nothing returning *`;
   return alert && (await notifyOwner(profile, alert, owner, chain)) ? 1 : 0;
 }
 
@@ -38,7 +45,7 @@ async function tickProfile(profile: Profile, now: Date): Promise<number> {
   const chain = orderChain(await sql<Member>`select * from members where profile_id = ${profile.id}`);
   if (!chain.length) return 0;
   const first = chain[0];
-  const helper = chain.length > 1 ? 1 : 0; // errands (refills, escorts) start with the first non-elder link
+  const helper = firstHelper(chain);
   let sent = 0;
 
   // Doses: upcoming reminders, then missed doses become owned alerts.
@@ -56,7 +63,8 @@ async function tickProfile(profile: Profile, now: Date): Promise<number> {
     const status = logged.get(key);
     const state = classifySlot(slot.at, now, status === "taken" || status === "skipped");
 
-    if (state === "upcoming" && (await once(`up:${key}`))) {
+    // "due" too: if the timer ran late and skipped the 15-minute window, still remind once.
+    if ((state === "upcoming" || state === "due") && (await once(`up:${key}`))) {
       const base = { m: first.id, p: profile.id, med: med.id, at: slot.at.getTime() };
       const ok = await sendMail(first.email, `Time for ${med.brand} at ${showTime(slot.at)}`, [
         `${medName(med)}${med.instructions ? `, ${med.instructions}` : ""}.`,
@@ -74,7 +82,8 @@ async function tickProfile(profile: Profile, now: Date): Promise<number> {
       if (now.getTime() - slot.at.getTime() < ALERT_LOOKBACK_MS) {
         sent += await raise(profile, chain, "dose", `dose:${key}`,
           `${profile.elder_name} hasn't marked ${med.brand} (${showTime(slot.at)})`,
-          `The ${showTime(slot.at)} dose of ${medName(med)} is over 30 minutes late and nobody has marked it.`, 0);
+          `The ${showTime(slot.at)} dose of ${medName(med)} is over 30 minutes late and nobody has marked it.`, 0,
+          { medId: med.id, at: slot.at });
       }
     }
   }
@@ -102,7 +111,7 @@ async function tickProfile(profile: Profile, now: Date): Promise<number> {
     if (tag && (await once(`${tag}:${a.id}`))) {
       const escort = chain.find((m) => m.id === a.escort_id);
       const results = await Promise.all(chain.map((m) => sendMail(m.email,
-        `${tag === "appt2" ? "In 2 hours" : "Tomorrow"}: ${profile.elder_name} sees ${a.doctor}`,
+        `${visitHeading(a.starts_at, now)}: ${profile.elder_name} sees ${a.doctor}`,
         [where, escort ? `${escort.name} is taking them.` : "Nobody has said they're taking them yet."])));
       sent += results.filter(Boolean).length;
     }

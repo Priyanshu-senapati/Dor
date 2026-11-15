@@ -1,4 +1,5 @@
 import { appUrl, sendMail } from "./mail";
+import { firstHelper } from "./chain";
 import { signToken } from "./token";
 import type { Alert, EmailAction, Member, Profile } from "./types";
 
@@ -25,7 +26,8 @@ export async function notifyOwner(profile: Profile, alert: Alert, owner: Member,
     ]);
   }
 
-  const before = chain.slice(0, alert.level).map((m) => m.name);
+  // Only name the people this alert has actually been with (errands skip the elder).
+  const before = chain.slice(alert.kind === "dose" ? 0 : firstHelper(chain), alert.level).map((m) => m.name);
   const lines = [alert.body];
   if (before.length) lines.push(`${before.join(" and ")} ${before.length > 1 ? "haven't" : "hasn't"} responded, so this is with you now.`);
   lines.push("Tap below so the rest of the family knows you've got it. If nobody does within 15 minutes, Dor passes it on.");
