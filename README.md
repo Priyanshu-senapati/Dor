@@ -102,7 +102,7 @@ The Circle page counts each family member’s care events over 30 days (alerts c
 
 #### Handoff: hand over the string when you travel
 
-*“I’m away 15–17 Nov, Arjun covers.”* While someone is away, Dor skips them in the chain. Their open events and any visits they were taking move to their cover, with a trail entry on each, and the cover gets one email listing everything that is now theirs. *I’m back* restores the chain.
+*“I’m away 15–17 Nov, Arjun covers.”* While someone is away, Dor skips them in the chain. Their open events and any future visits they were taking move to their cover, with a trail entry on each (handoffs that start on a later day are applied by the reminder check on that day). The cover gets one email with a **briefing written by Google Gemini** from Dor’s records: what is now theirs, the daily medicine routine, and recent skip reasons. The briefing is labelled as not medical advice, and Dor falls back to a plain-text version if Gemini isn’t available. *I’m back* restores the chain.
 
 ### 2. Emails you can act on
 
@@ -187,6 +187,17 @@ One person creates a circle for the elder and gets a code like `DOR-4F7K`. Famil
 
 ---
 
+## Google services, and why each one is there
+
+| Service | What it does in Dor | Where |
+|---|---|---|
+| **Google Calendar** | Every doctor visit has an *Add to Google Calendar* link, and whoever claims a visit gets one in their email. The event title names the person responsible (*“Kamala’s visit to Dr Meera Sharma: Arjun taking Kamala”*), so the responsibility lives in the family’s own calendars too. It uses Calendar’s event-template link: no OAuth, no stored tokens, and no medical detail in the event. | [`lib/gcal.ts`](lib/gcal.ts) |
+| **Gemini API** | Writes the handoff briefing for the person covering, from structured facts Dor already holds (open items, medicine routine, recent skip reasons). It never decides anything: ownership, escalation, reminders and duplicate checks are deterministic code. The prompt forbids medical advice, diagnosis or medicine changes; only the elder’s first name, medicine names and times are sent; the result is labelled; and a deterministic fallback covers timeouts and missing keys. | [`lib/gemini.ts`](lib/gemini.ts) |
+| **Gmail** | Sends every reminder and alert, with one-tap actions. | [`lib/mail.ts`](lib/mail.ts) |
+| **Google Fonts** | Atkinson Hyperlegible (designed for low-vision readers) and Rozha One, self-hosted at build time via `next/font`. | [`app/layout.tsx`](app/layout.tsx) |
+
+---
+
 <a id="how-it-works"></a>
 
 ## How it works
@@ -211,8 +222,40 @@ flowchart LR
 - **Postgres on Neon**, queried with parameterised tagged templates. Schema in [`db/schema.sql`](db/schema.sql).
 - **Email** through Gmail SMTP, capped per recipient and per day so the sending account stays in good standing.
 - **The reminder check** ([`lib/tick.ts`](lib/tick.ts)) runs every 5 minutes from a [GitHub Actions workflow](.github/workflows/tick.yml), because Vercel’s free plan allows only a daily cron. As a backup, it also runs (at most once per 5 minutes) when someone opens the app. It is idempotent: overlapping runs never send an email or raise an alert twice.
-- **Security.** Signed, expiring email links that act only on POST. Passcode lockout that holds up against parallel guesses. Every query scoped to the signed-in circle. No framing by other sites.
-- **Tested core.** Dose timing, escalation, brand-to-salt matching, Trace flags, tokens and passcodes live in small pure modules in [`lib/`](lib) with unit tests in [`tests/`](tests).
+- **Layout.** Pages are server components in [`app/p/`](app/p); every write is a server action in [`app/actions.ts`](app/actions.ts) that re-checks the session and validates input ([`lib/validate.ts`](lib/validate.ts)). Care logic lives in [`lib/care.ts`](lib/care.ts), alert creation and trails in [`lib/alerts.ts`](lib/alerts.ts), and decisions that can be pure (timing, escalation, gaps, care load, salts, trace flags) are pure functions in [`lib/`](lib).
+
+## Security
+
+| Concern | What Dor does |
+|---|---|
+| Passcodes | scrypt with a per-circle salt, compared in constant time ([`lib/passcode.ts`](lib/passcode.ts)). |
+| Brute force | The attempt is counted *before* the hash check, in one atomic update, so parallel guesses can’t skip it: the 5th wrong try pauses the circle for 10 minutes (tested live with 12 simultaneous guesses: 5 got through). The demo circle is exempt because its passcode is public. |
+| Sessions | HMAC-signed, expiring, `httpOnly`, `SameSite=Lax`, `Secure` in production. Email-action tokens are rejected as sessions. |
+| Authorisation | Every server action and page loads the circle from the session and scopes every query by `profile_id`; ids from forms are UUID-checked first. The elder-only actions (approve, decline, stop a medicine) are checked on the server. |
+| Email links | Signed with HMAC, expire in 24 hours, bound to one member and one alert or dose. Opening a link only shows a confirm page; the action happens on POST, so mail scanners can’t trigger it. Actions are idempotent (repeating one changes nothing). |
+| Database | Parameterised tagged templates only. Concurrency-sensitive writes are single statements (claiming, escalation, dose marking with a locked read). |
+| Abuse | Per-recipient (40/day) and global (400/day) email caps; caps on dose times, medicines, visits and circle size. |
+| Headers | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `Referrer-Policy: same-origin`. |
+| Secrets | Only in Vercel and GitHub encrypted settings; `.env*` is ignored and the git history has none. |
+| Dependencies | `npm audit --omit=dev`: **0 vulnerabilities** (PostCSS pinned to a patched version via `overrides`). Six moderate advisories remain in dev-only lint tooling. |
+
+## Testing
+
+`npm test` runs **70 unit tests** in [`tests/`](tests), covering dose timing and missed-dose classification, escalation and the elder-first chain, handoff duty rules, care gaps, care load, the “What happened?” outcomes, brand → ingredient matching and duplicates, Trace flags (calendar days, windows), signed tokens (tampered, expired, garbage), passcodes, open-redirect and input validation, the Google Calendar link and the Gemini prompt and fallback.
+
+Behaviour that depends on the database (claim races, lockout under parallel guesses, single pill decrement under concurrent taps, refill re-raising) was verified against the live Neon database during development; those checks aren’t yet automated.
+
+## Accessibility and performance (measured)
+
+Lighthouse 12 against the live deployment:
+
+| Page | Accessibility | Performance | Best practices | SEO |
+|---|---|---|---|---|
+| Home | **100** | 98 | 100 | 100 |
+| Today (signed in) | **100** | 96 | 100 | 100 |
+| Elder mode (signed in) | **100** | – | – | – |
+
+Labels on every control, visible focus rings, contrast checked, 44px+ touch targets, a reduced-motion fallback for the one animation, and no colour-only status (every status has a word). Every query has a matching index ([`db/schema.sql`](db/schema.sql)), and the one-off tables are cleaned by the reminder check.
 
 ## Run it locally
 
@@ -225,10 +268,14 @@ npm run dev                          # http://localhost:3000
 npm test
 ```
 
-`SMTP_PASS` must be a Gmail **app password** (Google Account → Security → 2-Step Verification → App passwords), not your normal password.
+`SMTP_PASS` must be a Gmail **app password** (Google Account → Security → 2-Step Verification → App passwords), not your normal password. `GEMINI_API_KEY` is optional (from Google AI Studio); without it, handoff briefings use the plain-text fallback.
+
+Deploy: push to Vercel, connect Neon from the Storage tab, set the variables above, and add `CRON_SECRET` and `DOR_URL` as GitHub Actions secrets for the reminder workflow.
 
 ## Limits we know about
 
 - Dor helps a family coordinate. It is **not medical advice**. The brand list is a curated safety net, not a formulary.
 - All circles run on India Standard Time.
-- GitHub’s scheduler can run a few minutes late. Opening the app, or **Run the reminder check now** on the Today page, runs it immediately.
+- GitHub’s 5-minute schedule can run late, or not start for hours on a new repository. Opening the app, or **Run the reminder check now** on the Today page, runs it immediately, and the manual [reminder loop](.github/workflows/tick-loop.yml) keeps it running every 5 minutes for 6 hours.
+- On Gemini’s free tier, Google may use prompts to improve its products. Dor sends only the elder’s first name, medicine names and times and open items; for real families, use a paid key.
+- Handoffs don’t yet ask the cover to accept, and doctor questions can’t yet be marked answered.

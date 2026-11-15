@@ -52,13 +52,14 @@ export interface GeminiModel {
 
 const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_TIMEOUT_MS = 8000;
-// Runs after the response is sent (see setAway), so it can afford to wait.
-const GENERATE_TIMEOUT_MS = 50_000;
+// Runs after the response is sent (see setAway); a lite model answers in about a second.
+const GENERATE_TIMEOUT_MS = 20_000;
 
 /** A plain-text Flash model from the key's model list ("models/gemini-3-flash" → "gemini-3-flash"). */
 export function chooseFlashModel(models: GeminiModel[]): string | null {
   const usable = models.filter(
-    (m) => m.supportedGenerationMethods?.includes("generateContent") && /flash/.test(m.name) && !/(image|tts|audio|live|exp)/.test(m.name),
+    // Stable names only: moving aliases ("-latest") and previews can stall or disappear.
+    (m) => m.supportedGenerationMethods?.includes("generateContent") && /flash/.test(m.name) && !/(image|tts|audio|live|exp|latest|preview)/.test(m.name),
   );
   return usable.sort((a, b) => b.name.localeCompare(a.name))[0]?.name.replace(/^models\//, "") ?? null;
 }
@@ -89,7 +90,7 @@ let workingModel: string | null = null;
 export async function handoffBriefing(i: HandoffInput): Promise<{ text: string; ai: boolean }> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return { text: handoffFallback(i), ai: false };
-  let model = workingModel ?? process.env.GEMINI_MODEL ?? "gemini-flash-latest";
+  let model = workingModel ?? process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite";
   try {
     const prompt = handoffPrompt(i);
     let res = await generate(key, model, prompt, true);

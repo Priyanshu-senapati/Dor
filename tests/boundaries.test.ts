@@ -14,6 +14,14 @@ describe("chooseFlashModel", () => {
       ]),
     ).toBe("gemini-3-flash");
   });
+  it("skips moving aliases and previews", () =>
+    expect(
+      chooseFlashModel([
+        { name: "models/gemini-flash-latest", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-3-flash-preview", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-3.1-flash-lite", supportedGenerationMethods: ["generateContent"] },
+      ]),
+    ).toBe("gemini-3.1-flash-lite"));
   it("returns null when nothing fits", () => expect(chooseFlashModel([{ name: "models/embed", supportedGenerationMethods: [] }])).toBeNull());
 });
 
