@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Atkinson_Hyperlegible, Fraunces } from "next/font/google";
+import { Atkinson_Hyperlegible, Rozha_One } from "next/font/google";
 import "./globals.css";
 
 // Atkinson Hyperlegible was designed for low-vision readers: the right default for elders.
 const body = Atkinson_Hyperlegible({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-body" });
-const display = Fraunces({ subsets: ["latin"], variable: "--font-display-face" });
+// Rozha One: an Indian display serif that sets both "Dor" and "डोर".
+const display = Rozha_One({ subsets: ["latin", "devanagari"], weight: "400", variable: "--font-display-face" });
 
 export const metadata: Metadata = {
   title: "Dor · someone always holds the string",

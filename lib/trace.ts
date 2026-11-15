@@ -1,4 +1,4 @@
-import { DAY_MS } from "./time";
+import { DAY_MS, istDate } from "./time";
 
 export const TRACE_WINDOW_DAYS = 7;
 
@@ -29,7 +29,7 @@ export function flagSymptoms(changes: Change[], symptoms: SymptomEntry[], window
     const firstAt = new Date(Math.min(...dates.map((d) => d.getTime())));
     const before = changes.filter((c) => c.at <= firstAt).sort((a, b) => b.at.getTime() - a.at.getTime())[0];
     if (!before) return [];
-    const daysAfter = Math.floor((firstAt.getTime() - before.at.getTime()) / DAY_MS);
+    const daysAfter = (Date.parse(istDate(firstAt)) - Date.parse(istDate(before.at))) / DAY_MS;
     return daysAfter <= windowDays ? [{ symptom, firstAt, change: before.label, daysAfter, count: dates.length }] : [];
   });
 }

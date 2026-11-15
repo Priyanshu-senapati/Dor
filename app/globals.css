@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-@theme {
+/* inline: the font vars come from next/font on <body>, so utilities must reference them directly */
+@theme inline {
   --color-paper: #fbf6ee;
   --color-ink: #1f2a44;
   --color-muted: #5b6478;

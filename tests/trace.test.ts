@@ -17,6 +17,13 @@ describe("flagSymptoms", () => {
       { symptom: "dizziness", firstAt: oct("14"), change: "Amlong 5 mg → 10 mg", daysAfter: 2, count: 2 },
     ]);
   });
+  it("counts calendar days in IST, not 24-hour periods", () => {
+    const flags = flagSymptoms(
+      [{ at: new Date("2026-10-12T18:00:00+05:30"), label: "change" }],
+      [{ at: new Date("2026-10-14T09:00:00+05:30"), name: "dizziness" }],
+    );
+    expect(flags[0].daysAfter).toBe(2);
+  });
   it("does not flag a symptom that started more than 7 days after the last change", () =>
     expect(flagSymptoms(changes, [{ at: oct("21"), name: "swelling" }])).toEqual([]));
   it("does not flag a symptom that began before any change", () =>
